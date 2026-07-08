@@ -1,0 +1,23 @@
+{
+  "variants": {
+    "facing=north,has_filter=false,scanning=false": { "model": "createcrude:block/seismic_detector" },
+    "facing=east,has_filter=false,scanning=false":  { "model": "createcrude:block/seismic_detector", "y": 90 },
+    "facing=south,has_filter=false,scanning=false": { "model": "createcrude:block/seismic_detector", "y": 180 },
+    "facing=west,has_filter=false,scanning=false":  { "model": "createcrude:block/seismic_detector", "y": 270 },
+
+    "facing=north,has_filter=false,scanning=true":  { "model": "createcrude:block/seismic_detector_active" },
+    "facing=east,has_filter=false,scanning=true":   { "model": "createcrude:block/seismic_detector_active", "y": 90 },
+    "facing=south,has_filter=false,scanning=true":  { "model": "createcrude:block/seismic_detector_active", "y": 180 },
+    "facing=west,has_filter=false,scanning=true":   { "model": "createcrude:block/seismic_detector_active", "y": 270 },
+
+    "facing=north,has_filter=true,scanning=false":  { "model": "createcrude:block/seismic_detector_filtered" },
+    "facing=east,has_filter=true,scanning=false":   { "model": "createcrude:block/seismic_detector_filtered", "y": 90 },
+    "facing=south,has_filter=true,scanning=false":  { "model": "createcrude:block/seismic_detector_filtered", "y": 180 },
+    "facing=west,has_filter=true,scanning=false":   { "model": "createcrude:block/seismic_detector_filtered", "y": 270 },
+
+    "facing=north,has_filter=true,scanning=true":   { "model": "createcrude:block/seismic_detector_filtered_active" },
+    "facing=east,has_filter=true,scanning=true":    { "model": "createcrude:block/seismic_detector_filtered_active", "y": 90 },
+    "facing=south,has_filter=true,scanning=true":   { "model": "createcrude:block/seismic_detector_filtered_active", "y": 180 },
+    "facing=west,has_filter=true,scanning=true":    { "model": "createcrude:block/seismic_detector_filtered_active", "y": 270 }
+  }
+}

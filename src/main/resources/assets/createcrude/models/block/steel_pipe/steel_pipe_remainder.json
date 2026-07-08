@@ -1,0 +1,35 @@
+{
+  "credit": "Made with Blockbench",
+  "textures": {
+    "0": "createcrude:block/steel_pipes",
+    "particle": "createcrude:block/steel_pipes"
+  },
+  "elements": [
+    {
+      "name": "Cap North",
+      "from": [4, 4, 4],
+      "to": [12, 12, 5],
+      "faces": {
+        "north": {"uv": [11, 11, 16, 16], "texture": "#0"},
+        "east": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+        "south": {"uv": [11, 11, 16, 16], "texture": "#0"},
+        "west": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+        "up": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+        "down": {"uv": [9, 11, 10.5, 16], "texture": "#0"}
+      }
+    },
+    {
+      "name": "Cap South",
+      "from": [4, 4, 11],
+      "to": [12, 12, 12],
+      "faces": {
+        "north": {"uv": [11, 11, 16, 16], "texture": "#0"},
+        "east": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+        "south": {"uv": [11, 11, 16, 16], "texture": "#0"},
+        "west": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+        "up": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+        "down": {"uv": [9, 11, 10.5, 16], "texture": "#0"}
+      }
+    }
+  ]
+}

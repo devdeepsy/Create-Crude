@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "facing=down":  { "model": "createcrude:block/pumpjack_counterweight", "x": 180 },
+    "facing=up":    { "model": "createcrude:block/pumpjack_counterweight" },
+    
+    "facing=north": { "model": "createcrude:block/pumpjack_counterweight" },
+    "facing=east":  { "model": "createcrude:block/pumpjack_counterweight", "y": 90 },
+    "facing=south": { "model": "createcrude:block/pumpjack_counterweight", "y": 180 },
+    "facing=west":  { "model": "createcrude:block/pumpjack_counterweight", "y": 270 }
+  }
+}

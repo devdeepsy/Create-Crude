@@ -1,0 +1,6 @@
+{
+    "parent": "item/generated",
+    "textures": {
+        "layer0": "createcrude:item/gasoline_bucket"
+    }
+}

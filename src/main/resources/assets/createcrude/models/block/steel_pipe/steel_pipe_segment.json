@@ -1,0 +1,37 @@
+{
+	"credit": "Made with Blockbench",
+	"textures": {
+		"0": "createcrude:block/steel_pipes",
+		"particle": "createcrude:block/steel_pipes"
+	},
+	"elements": [
+		{
+			"name": "Casing Bracket",
+			"from": [3, 3, 0],
+			"to": [13, 13, 2],
+			"rotation": {"angle": 0, "axis": "y", "origin": [-2, -2, 2]},
+			"faces": {
+				"north": {"uv": [11, 11, 16, 16], "texture": "#0"},
+				"east": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+				"south": {"uv": [11, 11, 16, 16], "texture": "#0"},
+				"west": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+				"up": {"uv": [9, 11, 10.5, 16], "texture": "#0"},
+				"down": {"uv": [9, 11, 10.5, 16], "texture": "#0"}
+			}
+		},
+		{
+			"name": "Extension Tube",
+			"from": [4, 4, 2],
+			"to": [12, 12, 4],
+			"rotation": {"angle": 0, "axis": "y", "origin": [2, 2, 0]},
+			"faces": {
+				"north": {"uv": [11, 11, 16, 16], "texture": "#0"},
+				"east": {"uv": [4, 0, 8, 8], "texture": "#0"},
+				"south": {"uv": [11, 11, 16, 16], "texture": "#0"},
+				"west": {"uv": [4, 0, 8, 8], "texture": "#0"},
+				"up": {"uv": [4, 0, 8, 8], "texture": "#0"},
+				"down": {"uv": [4, 0, 8, 8], "texture": "#0"}
+			}
+		}
+	]
+}

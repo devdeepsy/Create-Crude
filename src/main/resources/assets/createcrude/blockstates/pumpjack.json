@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "createcrude:block/pumpjack" },
+    "facing=south": { "model": "createcrude:block/pumpjack", "y": 180 },
+    "facing=west": { "model": "createcrude:block/pumpjack", "y": 270 },
+    "facing=east": { "model": "createcrude:block/pumpjack", "y": 90 }
+  }
+}

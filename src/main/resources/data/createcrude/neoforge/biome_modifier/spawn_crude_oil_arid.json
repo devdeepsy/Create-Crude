@@ -1,0 +1,12 @@
+{
+  "type": "neoforge:add_features",
+  "biomes": {
+    "type": "neoforge:or",
+    "values": [
+      "#c:is_desert",
+      "#c:is_badlands"
+    ]
+  },
+  "features": "createcrude:crude_oil_lake_mega",
+  "step": "underground_decoration"
+}

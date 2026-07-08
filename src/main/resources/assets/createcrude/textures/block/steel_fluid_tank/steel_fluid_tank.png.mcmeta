@@ -1,0 +1,11 @@
+{
+  "ctm": {
+    "ctm_version": 1,
+    "type": "create:fluid_tank",
+    "textures": [
+      "createcrude:block/steel_fluid_tank_connected",
+      "createcrude:block/steel_fluid_tank_top_connected",
+      "createcrude:block/steel_fluid_tank_inner_connected"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "variants": {
+    "axis=y,material=iron": { "model": "createcrude:block/metal_rod/iron_rod" },
+    "axis=x,material=iron": { "model": "createcrude:block/metal_rod/iron_rod", "x": 90, "y": 90 },
+    "axis=z,material=iron": { "model": "createcrude:block/metal_rod/iron_rod", "x": 90 },
+
+    "axis=y,material=steel": { "model": "createcrude:block/metal_rod/steel_rod" },
+    "axis=x,material=steel": { "model": "createcrude:block/metal_rod/steel_rod", "x": 90, "y": 90 },
+    "axis=z,material=steel": { "model": "createcrude:block/metal_rod/steel_rod", "x": 90 },
+
+    "axis=y,material=cast_iron": { "model": "createcrude:block/metal_rod/cast_iron_rod" },
+    "axis=x,material=cast_iron": { "model": "createcrude:block/metal_rod/cast_iron_rod", "x": 90, "y": 90 },
+    "axis=z,material=cast_iron": { "model": "createcrude:block/metal_rod/cast_iron_rod", "x": 90 }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "IPI",
+    "RCR",
+    "III"
+  ],
+  "key": {
+    "I": { "item": "minecraft:iron_ingot" },
+    "P": { "item": "minecraft:daylight_detector" },
+    "R": { "item": "minecraft:redstone" },
+    "C": { "item": "minecraft:compass" }
+  },
+  "result": {
+    "id": "createcrude:seismic_detector",
+    "count": 1
+  }
+}

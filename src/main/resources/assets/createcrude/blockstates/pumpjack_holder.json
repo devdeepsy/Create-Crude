@@ -1,0 +1,33 @@
+{
+  "variants": {
+    "facing=down,rotation=north": { "model": "createcrude:block/pumpjack_holder", "x": 180, "y": 180 },
+    "facing=down,rotation=east":  { "model": "createcrude:block/pumpjack_holder", "x": 180, "y": 90 },
+    "facing=down,rotation=south": { "model": "createcrude:block/pumpjack_holder", "x": 180, "y": 0 },
+    "facing=down,rotation=west":  { "model": "createcrude:block/pumpjack_holder", "x": 180, "y": 270 },
+
+    "facing=up,rotation=north":   { "model": "createcrude:block/pumpjack_holder", "x": 0, "y": 0 },
+    "facing=up,rotation=east":    { "model": "createcrude:block/pumpjack_holder", "x": 0, "y": 90 },
+    "facing=up,rotation=south":   { "model": "createcrude:block/pumpjack_holder", "x": 0, "y": 180 },
+    "facing=up,rotation=west":    { "model": "createcrude:block/pumpjack_holder", "x": 0, "y": 270 },
+
+    "facing=north,rotation=north": { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 0 },
+    "facing=north,rotation=east":  { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 90 },
+    "facing=north,rotation=south": { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 180 },
+    "facing=north,rotation=west":  { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 270 },
+
+    "facing=south,rotation=north": { "model": "createcrude:block/pumpjack_holder", "x": 270, "y": 0 },
+    "facing=south,rotation=east":  { "model": "createcrude:block/pumpjack_holder", "x": 270, "y": 90 },
+    "facing=south,rotation=south": { "model": "createcrude:block/pumpjack_holder", "x": 270, "y": 180 },
+    "facing=south,rotation=west":  { "model": "createcrude:block/pumpjack_holder", "x": 270, "y": 270 },
+
+    "facing=east,rotation=north": { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 90 },
+    "facing=east,rotation=east":  { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 180 },
+    "facing=east,rotation=south": { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 270 },
+    "facing=east,rotation=west":  { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 0 },
+
+    "facing=west,rotation=north": { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 270 },
+    "facing=west,rotation=east":  { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 0 },
+    "facing=west,rotation=south": { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 90 },
+    "facing=west,rotation=west":  { "model": "createcrude:block/pumpjack_holder", "x": 90, "y": 180 }
+  }
+}

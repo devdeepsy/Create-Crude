@@ -1,0 +1,19 @@
+{
+  "itemGroup.createcrude": "Example Mod Tab",
+  "block.createcrude.example_block": "Example Block",
+  "item.createcrude.example_item": "Example Item",
+
+  "createcrude.configuration.title": "Create: Crude Configs",
+  "createcrude.configuration.section.createcrude.common.toml": "Create: Crude Configs",
+  "createcrude.configuration.section.createcrude.common.toml.title": "Create: Crude Configs",
+  "createcrude.configuration.items": "Item List",
+  "createcrude.configuration.logDirtBlock": "Log Dirt Block",
+  "createcrude.configuration.magicNumberIntroduction": "Magic Number Text",
+  "createcrude.configuration.magicNumber": "Magic Number",
+  "fluid.createcrude.crude_oil": "Crude Oil",
+  "item.createcrude.crude_oil_bucket": "Crude Oil Bucket",
+  "block.createcrude.crude_oil_block": "Crude Oil Block",
+  "block.createcrude.seismic_detector": "Seismic Detector",
+  "item.createcrude.diesel_bucket": "Diesel Bucket",
+  "item.createcrude.bitumen_bucket": "Bitumen Bucket"
+}

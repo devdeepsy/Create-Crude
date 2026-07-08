@@ -1,0 +1,36 @@
+{
+	"credit": "Made with Blockbench",
+	"texture_size": [32, 32],
+	"textures": {
+		"0": "createcrude:block/steel_pump",
+		"particle": "createcrude:block/steel_pump"
+	},
+	"elements": [
+		{
+			"from": [2, 13, 2],
+			"to": [14, 16, 14],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, 10, 0]},
+			"faces": {
+				"north": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"east": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"south": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"west": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"up": {"uv": [0, 0, 6, 6], "texture": "#0"},
+				"down": {"uv": [0, 0, 6, 6], "texture": "#0"}
+			}
+		},
+		{
+			"from": [2, 0, 2],
+			"to": [14, 3, 14],
+			"rotation": {"angle": 0, "axis": "y", "origin": [0, -3, 0]},
+			"faces": {
+				"north": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"east": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"south": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"west": {"uv": [6.5, 0, 8, 6], "rotation": 90, "texture": "#0"},
+				"up": {"uv": [0, 0, 6, 6], "texture": "#0"},
+				"down": {"uv": [0, 0, 6, 6], "texture": "#0"}
+			}
+		}
+	]
+}

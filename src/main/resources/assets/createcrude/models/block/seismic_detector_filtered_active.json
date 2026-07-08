@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "createcrude:block/seismic_detector_side",
+    "north": "createcrude:block/seismic_detector_idle-filtered-fueled",
+    "south": "createcrude:block/seismic_detector_side",
+    "east": "createcrude:block/seismic_detector_side",
+    "west": "createcrude:block/seismic_detector_side",
+    "up": "createcrude:block/seismic_detector_lateral",
+    "down": "createcrude:block/seismic_detector_lateral"
+  }
+}

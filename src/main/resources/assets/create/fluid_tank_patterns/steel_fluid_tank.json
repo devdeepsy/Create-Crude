@@ -1,0 +1,13 @@
+{
+  "block": "createcrude:steel_fluid_tank",
+  "type": "create:fluid_tank",
+  "textures": {
+    "base": "createcrude:block/steel_fluid_tank",
+    "connected": "createcrude:block/steel_fluid_tank_connected",
+    "top": "createcrude:block/steel_fluid_tank_top",
+    "top_connected": "createcrude:block/steel_fluid_tank_top_connected",
+    "inner": "createcrude:block/steel_fluid_tank_inner",
+    "inner_connected": "createcrude:block/steel_fluid_tank_inner_connected",
+    "window": "createcrude:block/steel_fluid_tank_window"
+  }
+}

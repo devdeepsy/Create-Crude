@@ -1,0 +1,15 @@
+{
+  "multipart": [
+    { "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_core" } },
+    { "when": { "north": "true" }, "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_segment" } },
+    { "when": { "south": "true" }, "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_segment", "y": 180 } },
+    { "when": { "east": "true" }, "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_segment", "y": 90 } },
+    { "when": { "west": "true" }, "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_segment", "y": 270 } },
+    { "when": { "up": "true" }, "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_segment", "x": 270 } },
+    { "when": { "down": "true" }, "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_segment", "x": 90 } },
+    {
+      "when": { "north": "false", "south": "false", "east": "false", "west": "false", "up": "false", "down": "false" },
+      "apply": { "model": "createcrude:block/steel_pipe/steel_pipe_remainder" }
+    }
+  ]
+}
