@@ -15,6 +15,8 @@ public class ModParticles {
 
     public static final DeferredHolder<ParticleType<?>, SimpleParticleType> SULFUR_SMOKE =
         PARTICLE_TYPES.register("sulfur_smoke", () -> new SimpleParticleType(false));
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> GAS_CLOUD =
+        PARTICLE_TYPES.register("gas_cloud", () -> new SimpleParticleType(false));
 
     public static void register(IEventBus modEventBus) {
         PARTICLE_TYPES.register(modEventBus);

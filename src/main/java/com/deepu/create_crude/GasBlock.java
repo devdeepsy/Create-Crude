@@ -76,38 +76,49 @@ public class GasBlock extends Block {
 
     @Override
     public void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-        int currentLifetime = state.getValue(LIFETIME);
+        boolean isSource = state.getValue(SOURCE);
         int interval = EXPAND_INTERVAL + random.nextInt(10);
-
-        if (state.getValue(SOURCE)) {
-        level.scheduleTick(pos, this, EXPAND_INTERVAL);
-        return;
-    }
-        if (currentLifetime <= 0) {
-            level.removeBlock(pos, false);
-            return;
+        if (level instanceof ServerLevel serverLevel) {
+            int count = isSource ? 3 : 1; // source emits more per tick
+            serverLevel.sendParticles(ModParticles.GAS_CLOUD.get(),
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                count,
+                0.3, 0.2, 0.3,   // spread within the block
+                0.01);           // speed
         }
-        int newLifetime = Math.max(0, currentLifetime - interval);
+
+        if (!isSource) {
+            int currentLifetime = state.getValue(LIFETIME);
+            if (currentLifetime <= 0) {
+                level.removeBlock(pos, false);
+                return;
+            }
+        }
 
         int currentRadius = state.getValue(RADIUS);
-        if (currentRadius < MAX_RADIUS) {
+        if (isSource || currentRadius < MAX_RADIUS) {
             for (Direction dir : Direction.values()) {
                 BlockPos target = pos.relative(dir);
                 BlockState targetState = level.getBlockState(target);
                 if (targetState.isAir() || targetState.canBeReplaced()) {
                     level.setBlock(target, this.defaultBlockState()
-                            .setValue(RADIUS, currentRadius + 1)
+                            .setValue(RADIUS, isSource ? 1 : currentRadius + 1)
                             .setValue(ACTIVE, state.getValue(ACTIVE))
                             .setValue(VARIANT, state.getValue(VARIANT))
-                            .setValue(LIFETIME, MAX_LIFETIME), 3);
+                            .setValue(LIFETIME, MAX_LIFETIME)
+                            .setValue(SOURCE, false), 3);
                 }
             }
         }
 
-        level.setBlock(pos, state.setValue(LIFETIME, newLifetime), 3);
-        level.scheduleTick(pos, this, interval);
-    }
+        if (!isSource) {
+            int currentLifetime = state.getValue(LIFETIME);
+            int newLifetime = Math.max(0, currentLifetime - interval);
+            level.setBlock(pos, state.setValue(LIFETIME, newLifetime), 3);
+        }
 
+        level.scheduleTick(pos, this, isSource ? EXPAND_INTERVAL : interval);
+    }
     @Override
     public boolean isRandomlyTicking(BlockState state) {
         return false;
@@ -115,7 +126,7 @@ public class GasBlock extends Block {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(ACTIVE, VARIANT, RADIUS, LIFETIME);
+        builder.add(ACTIVE, VARIANT, RADIUS, LIFETIME,SOURCE);
     }
     @Override
     public boolean skipRendering(BlockState state, BlockState adjacentBlockState, Direction direction) {
