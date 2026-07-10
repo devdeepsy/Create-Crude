@@ -1,6 +1,5 @@
 package com.deepu.create_crude.gases;
 
-import com.deepu.create_crude.gases.GasBlockEntity; 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.SimpleParticleType;
@@ -74,20 +73,26 @@ public class GasBlock extends Block {
         }
     }
 
+   
     @Override
     public void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         boolean isSource = state.getValue(SOURCE);
         int currentRadius = state.getValue(RADIUS);
 
-        // If not a source and the radius is 0, remove the block (it's empty)
-        if (!isSource && currentRadius == 0) {
+        // Dispersal logic: If it's not a source block and it has reached its max capacity or expands out,
+        // you can control its natural death via random chance or let it dissipate when radius peaks.
+        if (!isSource && currentRadius >= properties.maxRadius() && random.nextInt(4) == 0) {
             level.removeBlock(pos, false);
             return;
         }
 
-        // Spawn particles based on the current radius (do NOT change the radius)
-        int particleCount = 2 + currentRadius * 3;
-        double spread = 0.3 + currentRadius * 0.6;
+        int newRadius = currentRadius;
+        if (currentRadius < properties.maxRadius()) {
+            newRadius = Math.min(properties.maxRadius(), currentRadius + 1);
+        }
+
+        int particleCount = 2 + newRadius * 3;
+        double spread = 0.3 + newRadius * 0.6;
 
         level.sendParticles(particleSupplier.get(),
                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
@@ -95,7 +100,9 @@ public class GasBlock extends Block {
                 spread, spread * 0.6, spread,
                 0.01);
 
-        // Schedule next tick (no radius change)
+        BlockState newState = state.setValue(RADIUS, newRadius);
+        level.setBlock(pos, newState, 3);
+
         level.scheduleTick(pos, this, properties.tickInterval());
     }
 
@@ -113,12 +120,5 @@ public class GasBlock extends Block {
     @Override
     public boolean skipRendering(BlockState state, BlockState adjacentBlockState, Direction direction) {
         return adjacentBlockState.is(this) || super.skipRendering(state, adjacentBlockState, direction);
-    }
-    public boolean hasBlockEntity(BlockState state) {
-        return true;
-    }
-
-    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new GasBlockEntity(pos, state);
     }
 }

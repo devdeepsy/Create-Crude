@@ -45,7 +45,6 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import com.deepu.create_crude.block.entity.SeismicDetectorBlockEntity;
 import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
 import com.deepu.create_crude.gases.GasBlock;
-import com.deepu.create_crude.gases.GasBlockEntity;
 import com.deepu.create_crude.gases.GasRegistry;
 
 import net.minecraft.world.level.block.SoundType;
@@ -191,12 +190,6 @@ public class CreateCrude {
                 output.accept(ModFluids.GASOLINE_BUCKET.get());
                 output.accept(ModFluids.NAPHTHA_BUCKET.get());
                 GasRegistry.getAll().forEach(entry -> output.accept(entry.item.get()));
-                output.accept(ModGases.METHANE.bucket.get());
-                output.accept(ModGases.ETHANE.bucket.get());
-                output.accept(ModGases.PROPANE.bucket.get());
-                output.accept(ModGases.BUTANE.bucket.get());
-                output.accept(ModGases.LPG.bucket.get());
-                output.accept(ModGases.HYDROGEN.bucket.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
@@ -210,14 +203,12 @@ public class CreateCrude {
         ModParticles.register(modEventBus); 
         modEventBus.addListener(this::registerParticles);
         SulfurFluids.register();
-        ModGases.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
         modEventBus.addListener(this::onCommonSetup); 
         modEventBus.addListener(this::registerCapabilities);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         GasRegistry.register(modEventBus);
-        ModGases.linkBlocksToFluids();
 
 
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
@@ -228,12 +219,6 @@ public class CreateCrude {
         event.registerBlockEntityRenderer(SEISMIC_DETECTOR_BE.get(), SeismicDetectorRenderer::new);
         event.registerBlockEntityRenderer(PUMPJACK_BE.get(), PumpjackRenderer::new);
     }
-    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<GasBlockEntity>> GAS_BE =
-        BLOCK_ENTITIES.register("gas_block", () ->
-            BlockEntityType.Builder.of(GasBlockEntity::new,
-                GasRegistry.getAll().stream().map(entry -> entry.block.get()).toArray(Block[]::new)
-            ).build(null)
-    );
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(ModFluids.CRUDE_OIL_BUCKET.get());
@@ -265,9 +250,6 @@ public class CreateCrude {
             }
             return be.getInternalTank();
         });
-        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, GAS_BE.get(),
-            (be, side) -> ((GasBlockEntity) be).getTank()
-        );
     }
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {
