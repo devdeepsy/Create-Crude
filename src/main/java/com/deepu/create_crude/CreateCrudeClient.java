@@ -20,12 +20,12 @@ import com.deepu.create_crude.CreateCrude;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
-
 import com.deepu.create_crude.client.particle.GasCloudParticle;
 import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
-import com.deepu.create_crude.GasBlock;
-
-@Mod(value = CreateCrude.MODID, dist = Dist.CLIENT)
+import com.deepu.create_crude.gases.GasBlock;
+import com.deepu.create_crude.gases.GasRegistry;
+import com.deepu.create_crude.gases.GasRegistry.GasEntry;
+import net.minecraft.world.level.block.Block;
 
 @EventBusSubscriber(modid = CreateCrude.MODID, value = Dist.CLIENT)
 public class CreateCrudeClient {
@@ -37,17 +37,30 @@ public class CreateCrudeClient {
         CreateCrude.LOGGER.info("HELLO FROM CLIENT SETUP");
         CreateCrude.LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
     }
-    @SubscribeEvent
-    public static void registerBlockColors(RegisterColorHandlersEvent.Block event) {
-        event.register((state, world, pos, tintIndex) -> {
-            int radius = state.getValue(GasBlock.RADIUS);
-            int alpha = Math.max(0, 255 - radius * 50); // radius 0→255, 4→55
-            return (alpha << 24) | 0x00FFFFFF;
-        }, CreateCrude.GASBLOCK.get());
-    }
-    @SubscribeEvent
-    public static void registerParticleProviders(RegisterParticleProvidersEvent event) {
-        event.registerSpriteSet(ModParticles.GAS_CLOUD.get(), GasCloudParticle.Provider::new);
-    }
+    // @SubscribeEvent
+    // public static void registerBlockColors(RegisterColorHandlersEvent.Block event) {
+    //         // Keep old generic gas block if desired
+    //         event.register((state, world, pos, tintIndex) -> {
+    //             int radius = state.getValue(GasBlock.RADIUS);
+    //             int alpha = Math.max(0, 255 - radius * 50);
+    //             return (alpha << 24) | 0x00FFFFFF;
+    //         }, GasRegistry.getAll().stream().map(entry -> entry.block.get()).toArray(Block[]::new));
+
+    //         // Register each gas block with its own tint
+    //         GasRegistry.getAll().forEach(entry -> {
+    //             event.register((state, world, pos, tintIndex) -> {
+    //                 if (state.getBlock() instanceof GasBlock gasBlock) {
+    //                     int radius = state.getValue(GasBlock.RADIUS);
+    //                     int maxRadius = gasBlock.getProperties().maxRadius();
+    //                     int alpha = (int) (255 * (1 - (float) radius / maxRadius));
+    //                     alpha = Math.max(0, Math.min(255, alpha));
+    //                     int tint = gasBlock.getProperties().tintColor(); // 0xFFRRGGBB
+    //                     return (alpha << 24) | (tint & 0x00FFFFFF);
+    //                 }
+    //                 return 0xFFFFFFFF;
+    //             }, entry.block.get());
+    //         });
+        
+    //     }
     
 } 

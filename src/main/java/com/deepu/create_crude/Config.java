@@ -35,6 +35,11 @@ public class Config {
     static final ModConfigSpec SPEC = BUILDER.build();
 
     private static boolean validateItemName(final Object obj) {
-        return obj instanceof String itemName && BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(itemName));
+        if (obj instanceof String itemName) {
+        // This only checks if the string follows the "namespace:path" format rules
+        // without waking up or stalling the registry maps.
+        return ResourceLocation.tryParse(itemName) != null;
     }
+    return false;
+}
 }

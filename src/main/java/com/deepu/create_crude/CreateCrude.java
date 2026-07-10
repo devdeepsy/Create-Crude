@@ -44,11 +44,16 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
 import com.deepu.create_crude.block.entity.SeismicDetectorBlockEntity;
 import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
+import com.deepu.create_crude.gases.GasBlock;
+import com.deepu.create_crude.gases.GasBlockEntity;
+import com.deepu.create_crude.gases.GasRegistry;
+
 import net.minecraft.world.level.block.SoundType;
 import com.deepu.create_crude.block.*;
 import net.minecraft.world.item.Item;
 import net.minecraft.core.Direction;
 
+import com.deepu.create_crude.client.particle.GasCloudParticle;
 import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
 import com.deepu.create_crude.client.renderer.PumpjackRenderer;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
@@ -106,9 +111,6 @@ public class CreateCrude {
     public static final DeferredHolder<Block, Block> ASPHALT_BLOCK = BLOCKS.register("asphalt",
     () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).mapColor(MapColor.METAL).strength(2.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion()));
     
-    public static final DeferredBlock<Block> GASBLOCK = BLOCKS.register("gas_block",
-        () -> new GasBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_LIGHT_GRAY).strength(0.5f).sound(SoundType.GRAVEL).noOcclusion().pushReaction(PushReaction.DESTROY)));
-    
     public static final DeferredItem<Item> STEEL_PIPE_ITEM = ITEMS.register("steel_pipe", () -> new BlockItem(STEEL_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> HIGH_TENSILE_PIPE_ITEM = ITEMS.register("high_tensile_pipe", () -> new BlockItem(HIGH_TENSILE_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_PUMP_ITEM = ITEMS.register("steel_pump", () -> new BlockItem(STEEL_PUMP.get(), new Item.Properties()));
@@ -122,8 +124,6 @@ public class CreateCrude {
     public static final DeferredItem<Item> PUMPJACK_CRANK_ITEM = ITEMS.register("pumpjack_crank", () -> new BlockItem(PUMPJACK_CRANK.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_FLUID_TANK_ITEM = ITEMS.register("steel_fluid_tank", () -> new BlockItem(STEEL_FLUID_TANK.get(), new Item.Properties()));
     public static final DeferredItem<Item> SULFUR_POWDER_ITEM = ITEMS.register("sulfur_powder",() -> new Item(new Item.Properties()));
-    public static final DeferredItem<Item> GASBLOCK_ITEM = ITEMS.register("gas_block",
-    () -> new BlockItem(GASBLOCK.get(), new Item.Properties()));
     public static final DeferredHolder<Item, BlockItem> ASPHALT_ITEM = ITEMS.register("asphalt",
     () -> new BlockItem(ASPHALT_BLOCK.get(), new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_ROD_IRON_ITEM = ITEMS.register("iron_rod",
@@ -190,13 +190,14 @@ public class CreateCrude {
                 output.accept(SulfurFluids.SULFUR_NAPHTHA_BUCKET.get());
                 output.accept(ModFluids.GASOLINE_BUCKET.get());
                 output.accept(ModFluids.NAPHTHA_BUCKET.get());
-                output.accept(GASBLOCK_ITEM.get());
+                GasRegistry.getAll().forEach(entry -> output.accept(entry.item.get()));
+                output.accept(ModGases.METHANE.bucket.get());
+                output.accept(ModGases.ETHANE.bucket.get());
+                output.accept(ModGases.PROPANE.bucket.get());
+                output.accept(ModGases.BUTANE.bucket.get());
+                output.accept(ModGases.LPG.bucket.get());
+                output.accept(ModGases.HYDROGEN.bucket.get());
             }).build());
-
-    static {
-        // Force-load SulfurFluids now so its static initializers run early
-        SulfurFluids.SULFUR_DIESEL_ENTRY.getClass();
-    }
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
         modEventBus.addListener(this::registerRenderers);
@@ -208,12 +209,16 @@ public class CreateCrude {
         ModFluids.register(modEventBus);
         ModParticles.register(modEventBus); 
         modEventBus.addListener(this::registerParticles);
-
+        SulfurFluids.register();
+        ModGases.register(modEventBus);
         NeoForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
         modEventBus.addListener(this::onCommonSetup); 
         modEventBus.addListener(this::registerCapabilities);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
+        GasRegistry.register(modEventBus);
+        ModGases.linkBlocksToFluids();
+
 
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
@@ -221,13 +226,14 @@ public class CreateCrude {
 
     public void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(SEISMIC_DETECTOR_BE.get(), SeismicDetectorRenderer::new);
-         event.registerBlockEntityRenderer(PUMPJACK_BE.get(), PumpjackRenderer::new);
+        event.registerBlockEntityRenderer(PUMPJACK_BE.get(), PumpjackRenderer::new);
     }
-
-    private void registerParticles(RegisterParticleProvidersEvent event) {
-        event.registerSpriteSet(ModParticles.SULFUR_SMOKE.get(), SulfurSmokeParticle.Provider::new);
-    }
-
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<GasBlockEntity>> GAS_BE =
+        BLOCK_ENTITIES.register("gas_block", () ->
+            BlockEntityType.Builder.of(GasBlockEntity::new,
+                GasRegistry.getAll().stream().map(entry -> entry.block.get()).toArray(Block[]::new)
+            ).build(null)
+    );
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(ModFluids.CRUDE_OIL_BUCKET.get());
@@ -236,6 +242,17 @@ public class CreateCrude {
         }
     }
 
+    private void registerParticles(RegisterParticleProvidersEvent event) {
+        event.registerSpriteSet(ModParticles.SULFUR_SMOKE.get(), SulfurSmokeParticle.Provider::new);
+        event.registerSpriteSet(ModParticles.GAS_CLOUD.get(), GasCloudParticle.Provider::new);
+        event.registerSpriteSet(ModParticles.LPG_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.88F, 1.0F, 1.0F));
+        event.registerSpriteSet(ModParticles.METHANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.78F, 1.0F, 0.5F));
+        event.registerSpriteSet(ModParticles.ETHANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 0.8F, 0.53F));
+        event.registerSpriteSet(ModParticles.PROPANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.53F, 0.8F, 1.0F));
+        event.registerSpriteSet(ModParticles.BUTANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 0.53F, 1.0F));
+        event.registerSpriteSet(ModParticles.HYDROGEN_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 1.0F, 1.0F));
+        }
+
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("HELLO from server starting");
@@ -243,13 +260,14 @@ public class CreateCrude {
     private void registerCapabilities(net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent event) {
     // Expose the internal fluid tank capability to the world
         event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, PUMPJACK_BE.get(), (be, side) -> {
-            // Enforce your face rules: UP and DOWN cannot access fluid extraction lines
             if (side == Direction.UP || side == Direction.DOWN) {
                 return null; 
             }
-            // North, South, East, and West get full access to draw from the internal tank buffer!
             return be.getInternalTank();
         });
+        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, GAS_BE.get(),
+            (be, side) -> ((GasBlockEntity) be).getTank()
+        );
     }
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {

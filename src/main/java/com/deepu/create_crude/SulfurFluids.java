@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.FlowingFluid;
 import net.minecraft.world.level.material.Fluid;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.minecraft.core.particles.ColorParticleOption;
 
@@ -45,6 +46,9 @@ public class SulfurFluids {
     // Register all sulfur variants
     // -----------------------------------------------------------------
 
+    public static void register() {
+    
+    }
     // 1. Sulfur Diesel
     public static final ModFluids.FluidEntry SULFUR_DIESEL_ENTRY = registerSulfurFluid(
         "sulfur_diesel",

@@ -21,15 +21,15 @@ public class GasCloudParticle extends TextureSheetParticle {
         this.friction = 0.98F;
         this.gravity = 0.0F;
 
-        // BIG puffs — this is the "quite large particle" you wanted
+        // BIG puffs
         this.quadSize = 1.2F + this.random.nextFloat() * 0.8F; // ~1.2 - 2.0 blocks wide
 
-        this.lifetime = 60 + this.random.nextInt(40); // 3-5 sec per particle, independent of block LIFETIME
+        this.lifetime = 60 + this.random.nextInt(40); // 3-5 sec per particle
 
-        // Default color — overridden per-variant via setColor() from the provider/spawn call
-        this.rCol = 0.8F;
-        this.gCol = 0.85F;
-        this.bCol = 0.2F;
+        // Default color — overridden per-variant via setGasColor()
+        this.rCol = 1.0F;
+        this.gCol = 1.0F;
+        this.bCol = 1.0F;
         this.alpha = 0.0F; // start invisible, fade in
 
         this.hasPhysics = false;
@@ -81,9 +81,21 @@ public class GasCloudParticle extends TextureSheetParticle {
 
     public static class Provider implements ParticleProvider<SimpleParticleType> {
         private final SpriteSet sprites;
+        private final float r;
+        private final float g;
+        private final float b;
 
-        public Provider(SpriteSet sprites) {
+        // Constructor for colored gas variants
+        public Provider(SpriteSet sprites, float r, float g, float b) {
             this.sprites = sprites;
+            this.r = r;
+            this.g = g;
+            this.b = b;
+        }
+
+        // Fallback default constructor (makes it white if no color given)
+        public Provider(SpriteSet sprites) {
+            this(sprites, 1.0F, 1.0F, 1.0F);
         }
 
         @Override
@@ -92,6 +104,7 @@ public class GasCloudParticle extends TextureSheetParticle {
                                         double xd, double yd, double zd) {
             GasCloudParticle particle = new GasCloudParticle(level, x, y, z, xd, yd, zd, this.sprites);
             particle.pickSprite(this.sprites);
+            particle.setGasColor(this.r, this.g, this.b); // Now properly references local fields!
             return particle;
         }
     }

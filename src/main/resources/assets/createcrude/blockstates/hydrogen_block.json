@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "createcrude:block/hydrogen_block" }
+  }
+}

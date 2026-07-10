@@ -1,0 +1,23 @@
+{
+	"format_version": "1.21.11",
+	"credit": "Made with Blockbench",
+	"textures": {
+		"0": "createcrude:block/gas_block/lpg_block",
+		"particle": "createcrude:block/gas_block/lpg_block"
+	},
+	"elements": [
+		{
+			"from": [0, 0, 0],
+			"to": [16, 16, 16],
+			"faces": {
+				"north": {"uv": [0, 0, 4, 4], "texture": "#0", "cullface": "north"},
+				"east": {"uv": [4, 0, 8, 4], "texture": "#0", "cullface": "east"},
+				"south": {"uv": [8, 0, 12, 4], "texture": "#0", "cullface": "south"},
+				"west": {"uv": [0, 8, 4, 12], "texture": "#0", "cullface": "west"},
+				"up": {"uv": [4, 4, 8, 8], "texture": "#0", "cullface": "up"},
+				"down": {"uv": [0, 4, 4, 8], "texture": "#0", "cullface": "down"}
+			}
+		}
+	],
+	"neoforge:render_type": "minecraft:translucent"
+}
