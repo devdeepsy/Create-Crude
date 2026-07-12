@@ -44,14 +44,17 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
 import com.deepu.create_crude.block.entity.SeismicDetectorBlockEntity;
 import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
+import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
 import com.deepu.create_crude.gases.GasBlock;
 import com.deepu.create_crude.gases.GasRegistry;
+import com.deepu.create_crude.gases.SteelPumpBlockEntity;
 
 import net.minecraft.world.level.block.SoundType;
 import com.deepu.create_crude.block.*;
 import net.minecraft.world.item.Item;
 import net.minecraft.core.Direction;
 
+import com.deepu.create_crude.client.SteelPumpRenderer;
 import com.deepu.create_crude.client.particle.GasCloudParticle;
 import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
 import com.deepu.create_crude.client.renderer.PumpjackRenderer;
@@ -68,6 +71,22 @@ public class CreateCrude {
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
 
+    public static final DeferredBlock<Block> DISTILLATION_CONTROLLER = BLOCKS.register("distillation_controller",
+        () -> new DistillationControllerBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
+
+    public static final DeferredBlock<Block> DISTILLATION_CASING = BLOCKS.register("distillation_casing",
+        () -> new DistillationCasingBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<DistillationControllerBlockEntity>> DISTILLATION_CONTROLLER_BE =
+        BLOCK_ENTITIES.register("distillation_controller", () ->
+            BlockEntityType.Builder.of(DistillationControllerBlockEntity::new, DISTILLATION_CONTROLLER.get()).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<DistillationCasingBlockEntity>> DISTILLATION_CASING_BE =
+        BLOCK_ENTITIES.register("distillation_casing", () ->
+            BlockEntityType.Builder.of(DistillationCasingBlockEntity::new, DISTILLATION_CASING.get()).build(null));
+    
     public static final DeferredBlock<Block> SEISMIC_DETECTOR = BLOCKS.register("seismic_detector",
         () -> new SeismicDetectorBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(4.0f).requiresCorrectToolForDrops()));
     public static final DeferredItem<BlockItem> SEISMIC_DETECTOR_ITEM = ITEMS.registerSimpleBlockItem("seismic_detector", SEISMIC_DETECTOR);
@@ -108,14 +127,13 @@ public class CreateCrude {
     public static final DeferredBlock<Block> STEEL_FLUID_TANK = BLOCKS.register("steel_fluid_tank", 
         () -> new SteelFluidTankBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0F).sound(SoundType.NETHERITE_BLOCK)));
     public static final DeferredHolder<Block, Block> ASPHALT_BLOCK = BLOCKS.register("asphalt",
-    () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).mapColor(MapColor.METAL).strength(2.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion()));
+        () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).mapColor(MapColor.METAL).strength(2.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion()));
     
     public static final DeferredItem<Item> STEEL_PIPE_ITEM = ITEMS.register("steel_pipe", () -> new BlockItem(STEEL_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> HIGH_TENSILE_PIPE_ITEM = ITEMS.register("high_tensile_pipe", () -> new BlockItem(HIGH_TENSILE_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_PUMP_ITEM = ITEMS.register("steel_pump", () -> new BlockItem(STEEL_PUMP.get(), new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_ITEM = ITEMS.register("pumpjack", () -> new BlockItem(PUMPJACK.get(), new Item.Properties()));
-    public static final DeferredItem<Item> PUMPJACK_HOLDER_ITEM = ITEMS.register("pumpjack_holder",
-        ()-> new BlockItem(PUMPJACK_HOLDER.get(),new Item.Properties()));
+    public static final DeferredItem<Item> PUMPJACK_HOLDER_ITEM = ITEMS.register("pumpjack_holder",()-> new BlockItem(PUMPJACK_HOLDER.get(),new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_HAMMER_ITEM = ITEMS.register("pumpjack_hammer", () -> new BlockItem(PUMPJACK_HAMMER.get(), new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_COUNTERWEIGHT_ITEM = ITEMS.register("pumpjack_counterweight", () -> new BlockItem(PUMPJACK_COUNTERWEIGHT.get(), new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_HAMMER_HEAD_ITEM = ITEMS.register("pumpjack_hammer_head", () -> new BlockItem(PUMPJACK_HAMMER_HEAD.get(), new Item.Properties()));
@@ -123,8 +141,9 @@ public class CreateCrude {
     public static final DeferredItem<Item> PUMPJACK_CRANK_ITEM = ITEMS.register("pumpjack_crank", () -> new BlockItem(PUMPJACK_CRANK.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_FLUID_TANK_ITEM = ITEMS.register("steel_fluid_tank", () -> new BlockItem(STEEL_FLUID_TANK.get(), new Item.Properties()));
     public static final DeferredItem<Item> SULFUR_POWDER_ITEM = ITEMS.register("sulfur_powder",() -> new Item(new Item.Properties()));
-    public static final DeferredHolder<Item, BlockItem> ASPHALT_ITEM = ITEMS.register("asphalt",
-    () -> new BlockItem(ASPHALT_BLOCK.get(), new Item.Properties()));
+    public static final DeferredHolder<Item, BlockItem> ASPHALT_ITEM = ITEMS.register("asphalt",() -> new BlockItem(ASPHALT_BLOCK.get(), new Item.Properties()));
+    public static final DeferredItem<Item> DISTILLATION_CONTROLLER_ITEM = ITEMS.registerSimpleBlockItem("distillation_controller", DISTILLATION_CONTROLLER);
+    public static final DeferredItem<Item> DISTILLATION_CASING_ITEM = ITEMS.registerSimpleBlockItem("distillation_casing", DISTILLATION_CASING);
     public static final DeferredItem<Item> PUMPJACK_ROD_IRON_ITEM = ITEMS.register("iron_rod",
         () -> new net.minecraft.world.item.BlockItem(PUMPJACK_ROD.get(), new Item.Properties()) {
             @Override
@@ -145,7 +164,15 @@ public class CreateCrude {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PumpjackBlockEntity>> PUMPJACK_BE = 
         BLOCK_ENTITIES.register("pumpjack", () -> BlockEntityType.Builder.of(PumpjackBlockEntity::new, PUMPJACK.get()).build(null));
 
-
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<GasAwarePipeBlockEntity>> GAS_AWARE_PIPE_BE =
+        BLOCK_ENTITIES.register("gas_aware_pipe", () ->
+            BlockEntityType.Builder.of(GasAwarePipeBlockEntity::new,
+                STEEL_PIPE.get(), HIGH_TENSILE_PIPE.get()).build(null));
+    
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SteelPumpBlockEntity>> STEEL_PUMP_BE =
+        BLOCK_ENTITIES.register("steel_pump", () ->
+            BlockEntityType.Builder.of(SteelPumpBlockEntity::new, STEEL_PUMP.get()).build(null)
+    );
     public static final DeferredItem<Item> PUMPJACK_ROD_CAST_IRON_ITEM = ITEMS.register("cast_iron_rod",
         () -> new net.minecraft.world.item.BlockItem(PUMPJACK_ROD.get(), new Item.Properties()) {
             @Override
@@ -209,8 +236,6 @@ public class CreateCrude {
         modEventBus.addListener(this::registerCapabilities);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         GasRegistry.register(modEventBus);
-
-
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
     }

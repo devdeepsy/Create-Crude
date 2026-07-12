@@ -139,24 +139,21 @@ configurations {
 }
 
 dependencies {
-     // NeoForge
+    // NeoForge
     implementation "net.neoforged:neoforge:${neo_version}"
 
-    // Create mod (compile + runtime)
-    compileOnly "maven.modrinth:create:6.0.10+mc1.21.1"
-    localRuntime "maven.modrinth:create:6.0.10+mc1.21.1"
+    // Create mod (Properly declared for NeoForge ModDev toolchain)
+    implementation "maven.modrinth:create:6.0.10+mc1.21.1"
 
     // Explicitly add Ponder (Create's animation library)
-    compileOnly "net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1"
-    localRuntime "net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1"
+    implementation "net.createmod.ponder:ponder-neoforge:1.0.82+mc1.21.1"
 
-    // Explicitly add Flywheel (Create's rendering engine)
-    compileOnly "dev.engine-room.flywheel:flywheel-neoforge-1.21.1:1.0.4"
-    localRuntime "dev.engine-room.flywheel:flywheel-neoforge-1.21.1:1.0.4"
+    // Explicitly add Flywheel (Correct 1.21.1 Engine-Room version)
+    implementation "dev.engine-room.flywheel:flywheel-neoforge-1.21.1:1.0.4"
 
     // Explicitly add Registrate (Create's registration helper)
-    compileOnly "com.tterrag.registrate:Registrate:MC1.21-1.3.0+67"
-    localRuntime "com.tterrag.registrate:Registrate:MC1.21-1.3.0+67"
+    implementation "com.tterrag.registrate:Registrate:MC1.21-1.3.0+67"
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

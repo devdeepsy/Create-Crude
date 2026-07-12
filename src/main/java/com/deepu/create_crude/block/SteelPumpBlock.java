@@ -1,5 +1,6 @@
 package com.deepu.create_crude.block;
 
+import com.deepu.create_crude.CreateCrude;
 import com.simibubi.create.content.fluids.pump.PumpBlock;
 import com.simibubi.create.content.fluids.pump.PumpBlockEntity;
 import net.minecraft.core.BlockPos;
@@ -24,13 +25,14 @@ public class SteelPumpBlock extends PumpBlock {
     @Override
     @SuppressWarnings("unchecked")
     public BlockEntityType<? extends PumpBlockEntity> getBlockEntityType() {
-        if (cachedType == null) {
-            cachedType = (BlockEntityType<? extends PumpBlockEntity>)
-                net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
-                    .get(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("create", "mechanical_pump"));
-            if (cachedType == null) throw new IllegalStateException("Could not find create:mechanical_pump block entity type!");
-        }
-        return cachedType;
+        return CreateCrude.STEEL_PUMP_BE.get();
+        // if (cachedType == null) {
+        //     cachedType = (BlockEntityType<? extends PumpBlockEntity>)
+        //         net.minecraft.core.registries.BuiltInRegistries.BLOCK_ENTITY_TYPE
+        //             .get(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("create", "mechanical_pump"));
+        //     if (cachedType == null) throw new IllegalStateException("Could not find create:mechanical_pump block entity type!");
+        // }
+        // return cachedType;
     }
 
     @Override

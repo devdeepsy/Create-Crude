@@ -32,6 +32,7 @@ public class GasBlock extends Block {
     public static final IntegerProperty VARIANT = IntegerProperty.create("variant", 0, 15);
     public static final IntegerProperty RADIUS = IntegerProperty.create("radius", 0, MAX_RADIUS);
     public static final BooleanProperty SOURCE = BooleanProperty.create("source");
+    public static final IntegerProperty PRESSURE = IntegerProperty.create("pressure", 0, 7);
 
     private final GasProperties properties;
     private final Supplier<SimpleParticleType> particleSupplier;
@@ -44,7 +45,8 @@ public class GasBlock extends Block {
                 .setValue(ACTIVE, false)
                 .setValue(VARIANT, 0)
                 .setValue(RADIUS, 0)
-                .setValue(SOURCE, false));
+                .setValue(SOURCE, false)
+                .setValue(PRESSURE, 0));
     }
 
     public GasProperties getProperties() {
@@ -114,7 +116,7 @@ public class GasBlock extends Block {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(ACTIVE, VARIANT, RADIUS, SOURCE);
+        builder.add(ACTIVE, VARIANT, RADIUS, SOURCE,PRESSURE);
     }
 
     @Override
