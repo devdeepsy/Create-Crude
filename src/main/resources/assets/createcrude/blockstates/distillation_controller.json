@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "active=false": { "model": "createcrude:block/distillation_controller" },
+    "active=true": { "model": "createcrude:block/distillation_controller" }
+  }
+}

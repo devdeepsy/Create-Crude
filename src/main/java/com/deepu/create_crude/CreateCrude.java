@@ -13,6 +13,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
@@ -42,12 +43,15 @@ import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
+import com.deepu.create_crude.block.entity.DistillationCasingBlockEntity;
+import com.deepu.create_crude.block.entity.DistillationControllerBlockEntity;
 import com.deepu.create_crude.block.entity.SeismicDetectorBlockEntity;
 import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
 import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
 import com.deepu.create_crude.gases.GasBlock;
 import com.deepu.create_crude.gases.GasRegistry;
 import com.deepu.create_crude.gases.SteelPumpBlockEntity;
+import com.deepu.create_crude.block.*;
 
 import net.minecraft.world.level.block.SoundType;
 import com.deepu.create_crude.block.*;
@@ -58,6 +62,7 @@ import com.deepu.create_crude.client.SteelPumpRenderer;
 import com.deepu.create_crude.client.particle.GasCloudParticle;
 import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
 import com.deepu.create_crude.client.renderer.PumpjackRenderer;
+import com.deepu.create_crude.client.gui.DistillationContainerMenu;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 
 @Mod(CreateCrude.MODID)
@@ -70,6 +75,7 @@ public class CreateCrude {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
+    public static final DeferredRegister<MenuType<?>> MENU_TYPES = DeferredRegister.create(Registries.MENU, MODID);
 
     public static final DeferredBlock<Block> DISTILLATION_CONTROLLER = BLOCKS.register("distillation_controller",
         () -> new DistillationControllerBlock(BlockBehaviour.Properties.of()
@@ -142,8 +148,8 @@ public class CreateCrude {
     public static final DeferredItem<Item> STEEL_FLUID_TANK_ITEM = ITEMS.register("steel_fluid_tank", () -> new BlockItem(STEEL_FLUID_TANK.get(), new Item.Properties()));
     public static final DeferredItem<Item> SULFUR_POWDER_ITEM = ITEMS.register("sulfur_powder",() -> new Item(new Item.Properties()));
     public static final DeferredHolder<Item, BlockItem> ASPHALT_ITEM = ITEMS.register("asphalt",() -> new BlockItem(ASPHALT_BLOCK.get(), new Item.Properties()));
-    public static final DeferredItem<Item> DISTILLATION_CONTROLLER_ITEM = ITEMS.registerSimpleBlockItem("distillation_controller", DISTILLATION_CONTROLLER);
-    public static final DeferredItem<Item> DISTILLATION_CASING_ITEM = ITEMS.registerSimpleBlockItem("distillation_casing", DISTILLATION_CASING);
+    public static final DeferredItem<Item> DISTILLATION_CONTROLLER_ITEM = ITEMS.register("distillation_controller", () -> new BlockItem(DISTILLATION_CONTROLLER.get(), new Item.Properties()));
+    public static final DeferredItem<Item> DISTILLATION_CASING_ITEM = ITEMS.register("distillation_casing", () -> new BlockItem(DISTILLATION_CASING.get(), new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_ROD_IRON_ITEM = ITEMS.register("iron_rod",
         () -> new net.minecraft.world.item.BlockItem(PUMPJACK_ROD.get(), new Item.Properties()) {
             @Override
@@ -181,6 +187,8 @@ public class CreateCrude {
                 return state != null ? state.setValue(PumpjackRodBlock.MATERIAL, PumpjackRodBlock.RodMaterial.CAST_IRON) : null;
             }
         });
+    //Menu 
+    public static final DeferredHolder<MenuType<?>, MenuType<DistillationContainerMenu>> DISTILLATION_CONTAINER = MENU_TYPES.register("distillation_controller", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(DistillationContainerMenu::new));
     
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () ->
         CreativeModeTab.builder()
@@ -217,6 +225,7 @@ public class CreateCrude {
                 output.accept(ModFluids.GASOLINE_BUCKET.get());
                 output.accept(ModFluids.NAPHTHA_BUCKET.get());
                 GasRegistry.getAll().forEach(entry -> output.accept(entry.item.get()));
+                output.accept(DISTILLATION_CONTROLLER_ITEM.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
@@ -236,6 +245,7 @@ public class CreateCrude {
         modEventBus.addListener(this::registerCapabilities);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         GasRegistry.register(modEventBus);
+        MENU_TYPES.register(modEventBus);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
 
     }
@@ -275,6 +285,10 @@ public class CreateCrude {
             }
             return be.getInternalTank();
         });
+        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, DISTILLATION_CONTROLLER_BE.get(),
+            (be, side) -> be.getInputCapability(side));
+        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, DISTILLATION_CASING_BE.get(),
+            (be, side) -> ((DistillationCasingBlockEntity)be).getFluidCapability(side));
     }
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {
@@ -322,7 +336,6 @@ public class CreateCrude {
                 )
         );
     }
-
     @SuppressWarnings("unchecked")
     private void addBlockToCreateStructure(Block block, String path) {
         try {

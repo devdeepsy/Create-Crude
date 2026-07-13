@@ -2,6 +2,7 @@ package com.deepu.create_crude;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.item.ItemColor;
+import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
@@ -12,6 +13,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.event.RegisterNamedRenderTypesEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
@@ -24,6 +26,7 @@ import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 
 import com.deepu.create_crude.client.CreateCrudePartialModels;
 import com.deepu.create_crude.client.SteelPumpRenderer;
+import com.deepu.create_crude.client.gui.DistillationScreen;
 import com.deepu.create_crude.client.particle.GasCloudParticle;
 import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
 import com.deepu.create_crude.gases.GasBlock;
@@ -43,7 +46,15 @@ public class CreateCrudeClient {
         event.enqueueWork(() -> {
         CreateCrudePartialModels.init();
         BlockEntityRenderers.register(CreateCrude.STEEL_PUMP_BE.get(), SteelPumpRenderer::new);
+        net.minecraft.client.renderer.ItemBlockRenderTypes.setRenderLayer(
+            CreateCrude.DISTILLATION_CONTROLLER.get(), 
+            net.minecraft.client.renderer.RenderType.cutout()
+        );
     });
+    }
+    @SubscribeEvent
+    static void registerScreens(RegisterMenuScreensEvent event) {
+        event.register(CreateCrude.DISTILLATION_CONTAINER.get(), DistillationScreen::new);
     }
     // @SubscribeEvent
     // public static void registerBlockColors(RegisterColorHandlersEvent.Block event) {
