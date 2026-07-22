@@ -29,30 +29,31 @@ public class DistillationScreen extends AbstractContainerScreen<DistillationCont
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        // Draw background
         RenderSystem.setShaderTexture(0, GUI_TEXTURE);
         graphics.blit(GUI_TEXTURE, leftPos, topPos, 0, 0, imageWidth, imageHeight);
 
         DistillationControllerBlockEntity be = menu.getBlockEntity();
         if (be == null) return;
 
-        // Draw input bar (crude oil)
+        // Input bar
         FluidStack inputFluid = be.getInputTank().getFluid();
+        if (inputFluid.isEmpty()) {
+            // Use the crude oil fluid type for color even if tank is empty
+            inputFluid = new FluidStack(be.getInputFluid(), 1);
+        }
         drawFluidBar(graphics, leftPos + BAR_X, topPos + BAR_Y,
                      inputFluid, menu.getInputAmount(), menu.getInputCapacity());
 
-        // Draw output bars
+        // Output bars
         String[] labels = {"Bitumen", "Diesel", "Kerosene", "Gasoline", "Naphtha", "LPG"};
         for (int i = 0; i < 6; i++) {
             int x = leftPos + BAR_X + (i + 1) * BAR_SPACING + 4;
-            FluidStack fluid = be.getOutputTanks()[i].getFluid();
+            FluidStack productFluid = new FluidStack(be.getProductFluid(i), 1); // for color only
             drawFluidBar(graphics, x, topPos + BAR_Y,
-                         fluid, menu.getOutputAmount(i), menu.getOutputCapacity(i));
-            // Label under bar
+                         productFluid, menu.getOutputAmount(i), menu.getOutputCapacity(i));
             graphics.drawString(font, labels[i], x, topPos + BAR_Y + BAR_HEIGHT + 4, 0xFFFFFF, false);
         }
 
-        // Heat and active status
         String heat = menu.getHeatLevel() == 0 ? "No Heat" : (menu.getHeatLevel() == 1 ? "Heat: 1x" : "Heat: 2x");
         graphics.drawString(font, heat, leftPos + 10, topPos + 10, 0xFFFFFF, false);
         String active = menu.isActive() ? "§aActive" : "§cInactive";
@@ -69,7 +70,6 @@ public class DistillationScreen extends AbstractContainerScreen<DistillationCont
             IClientFluidTypeExtensions extensions = IClientFluidTypeExtensions.of(fluid.getFluid());
             color = extensions.getTintColor(fluid);
         }
-        // Draw filled rectangle – use the fluid colour
         graphics.fill(x, y + BAR_HEIGHT - fillHeight, x + BAR_WIDTH, y + BAR_HEIGHT, color | 0xFF000000);
     }
 

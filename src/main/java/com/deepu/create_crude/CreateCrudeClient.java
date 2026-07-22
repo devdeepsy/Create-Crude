@@ -50,6 +50,10 @@ public class CreateCrudeClient {
             CreateCrude.DISTILLATION_CONTROLLER.get(), 
             net.minecraft.client.renderer.RenderType.cutout()
         );
+        ItemBlockRenderTypes.setRenderLayer(
+            CreateCrude.STEEL_FLUID_TANK.get(),
+            RenderType.cutout()
+        );
     });
     }
     @SubscribeEvent

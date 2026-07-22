@@ -13,7 +13,6 @@ import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 
 public class DistillationContainerMenu extends AbstractContainerMenu {
     private final BlockPos pos;
@@ -56,11 +55,10 @@ public class DistillationContainerMenu extends AbstractContainerMenu {
         data.set(INPUT_AMOUNT, be.getInputTank().getFluidAmount());
         data.set(INPUT_CAPACITY, be.getInputTank().getCapacity());
 
-        FluidTank[] outputs = be.getOutputTanks();
         for (int i = 0; i < 6; i++) {
             int idx = OUTPUT_START + i * 2;
-            data.set(idx, outputs[i].getFluidAmount());
-            data.set(idx + 1, outputs[i].getCapacity());
+            data.set(idx, be.getProductTotalAmount(i));
+            data.set(idx + 1, be.getProductTotalCapacity(i));
         }
 
         data.set(HEAT_LEVEL, be.getHeatLevel());
@@ -76,7 +74,6 @@ public class DistillationContainerMenu extends AbstractContainerMenu {
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
-        // No item slots, so nothing to move
         return ItemStack.EMPTY;
     }
 
