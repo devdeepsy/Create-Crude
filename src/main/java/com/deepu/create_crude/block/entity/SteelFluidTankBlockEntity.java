@@ -2,6 +2,8 @@ package com.deepu.create_crude.block.entity;
 
 import com.deepu.create_crude.CreateCrude;
 import com.deepu.create_crude.block.SteelFluidTankBlock;
+
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
@@ -12,12 +14,16 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
-
+import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.level.material.Fluid;
+import java.util.Map;
 
-public class SteelFluidTankBlockEntity extends BlockEntity {
+public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggleInformation {
     public static final int CAPACITY = 16000;
 
     private final FluidTank tank = new FluidTank(CAPACITY) {
@@ -82,6 +88,80 @@ public class SteelFluidTankBlockEntity extends BlockEntity {
         if (level == null) return null;
         BlockEntity be = level.getBlockEntity(controller);
         return be instanceof SteelFluidTankBlockEntity ? (SteelFluidTankBlockEntity) be : null;
+    }
+
+    @Override
+    public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        if (controllerBE == null) return false;
+
+        // 1. Header Title
+        tooltip.add(Component.literal("  ")
+                .append(Component.translatable("block.create_crude.steel_fluid_tank"))
+                .withStyle(ChatFormatting.GOLD));
+
+        int totalCapacity = controllerBE.width * controllerBE.height * controllerBE.depth * CAPACITY;
+
+        // 2. Aggregate fluid amounts by unique fluid type across all connected sub-tanks
+        Map<Fluid, Integer> fluidAmounts = new LinkedHashMap<>();
+        Map<Fluid, FluidStack> fluidRepresentations = new LinkedHashMap<>();
+        int combinedFluidAmount = 0;
+
+        for (SteelFluidTankBlockEntity tankBE : controllerBE.getAllTanks()) {
+            FluidStack stack = tankBE.getTank().getFluid();
+            if (!stack.isEmpty()) {
+                Fluid fluid = stack.getFluid();
+                fluidAmounts.put(fluid, fluidAmounts.getOrDefault(fluid, 0) + stack.getAmount());
+                fluidRepresentations.putIfAbsent(fluid, stack);
+                combinedFluidAmount += stack.getAmount();
+            }
+        }
+
+        // 3. Render Tooltip
+        if (fluidAmounts.isEmpty()) {
+            // Empty State
+            tooltip.add(Component.literal("    ")
+                    .append(Component.translatable("gui.goggles.empty"))
+                    .withStyle(ChatFormatting.GRAY));
+
+            tooltip.add(Component.literal("    ")
+                    .append(Component.literal(String.format("0 / %,d mB", totalCapacity)))
+                    .withStyle(ChatFormatting.DARK_GRAY));
+        } else if (fluidAmounts.size() == 1) {
+            // Single Fluid State (Classic Create look)
+            FluidStack stack = fluidRepresentations.values().iterator().next();
+            int amount = fluidAmounts.values().iterator().next();
+
+            tooltip.add(Component.literal("    ")
+                    .append(stack.getHoverName())
+                    .withStyle(ChatFormatting.GRAY));
+
+            tooltip.add(Component.literal("    ")
+                    .append(Component.literal(String.format("%,d / %,d mB", amount, totalCapacity)))
+                    .withStyle(ChatFormatting.GOLD));
+        } else {
+            // Multi-Fluid State: Lists each stored fluid and its amount
+            for (Map.Entry<Fluid, Integer> entry : fluidAmounts.entrySet()) {
+                FluidStack stack = fluidRepresentations.get(entry.getKey());
+                int amount = entry.getValue();
+
+                tooltip.add(Component.literal("    ")
+                        .append(stack.getHoverName())
+                        .append(": ")
+                        .withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(String.format("%,d mB", amount))
+                                .withStyle(ChatFormatting.GOLD)));
+            }
+
+            // Total overall tank capacity line
+            tooltip.add(Component.literal("    ")
+                    .append(Component.literal("Total: "))
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(String.format("%,d / %,d mB", combinedFluidAmount, totalCapacity)))
+                    .withStyle(ChatFormatting.GOLD));
+        }
+
+        return true;
     }
 
    public void tryFormMultiblock() {
