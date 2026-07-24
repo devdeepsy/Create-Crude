@@ -3,31 +3,31 @@ package com.deepu.create_crude.block.entity;
 import com.deepu.create_crude.CreateCrude;
 import com.deepu.create_crude.ModFluids;
 import com.deepu.create_crude.SulfurFluids;
+import com.deepu.create_crude.ModParticles;
 import com.deepu.create_crude.block.SteelFluidTankBlock;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
+
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.level.material.Fluid;
 import java.util.Map;
-import com.deepu.create_crude.ModParticles;
-import net.minecraft.core.particles.ParticleOptions;
-import net.minecraft.world.level.Level;
-import net.minecraft.core.particles.ParticleOptions;
 
 public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggleInformation {
     public static final int CAPACITY = 16000;
@@ -48,6 +48,11 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
 
     private int productIndex = -1;
 
+    // Gas Storage Fields
+    @Nullable
+    private ResourceLocation storedGasId = null;
+    private int storedGasAmount = 0;
+
     // Multiblock data
     public BlockPos controller;
     public int height = 1;
@@ -59,8 +64,6 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
     public SteelFluidTankBlockEntity(BlockPos pos, BlockState state) {
         super(CreateCrude.STEEL_FLUID_TANK_BE.get(), pos, state);
     }
-
-    // ========== BASIC ACCESSORS ==========
 
     public FluidTank getTank() {
         return this.tank;
@@ -74,18 +77,70 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         return productIndex;
     }
 
-    public int fillTank(FluidStack resource, IFluidHandler.FluidAction action) {
-        return tank.fill(resource, action);
+    // ========== GAS STORAGE API ==========
+
+    @Nullable
+    public ResourceLocation getStoredGasId() {
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        return controllerBE != null && controllerBE != this ? controllerBE.getStoredGasId() : this.storedGasId;
+    }
+
+    public int getStoredGasAmount() {
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        return controllerBE != null && controllerBE != this ? controllerBE.getStoredGasAmount() : this.storedGasAmount;
+    }
+
+    public int getGasCapacity() {
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        if (controllerBE == null) return CAPACITY;
+        return controllerBE.width * controllerBE.height * controllerBE.depth * CAPACITY;
+    }
+
+    public int fillGas(ResourceLocation gasId, int amount, boolean simulate) {
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        if (controllerBE != null && controllerBE != this) {
+            return controllerBE.fillGas(gasId, amount, simulate);
+        }
+        if (amount <= 0 || gasId == null) return 0;
+        if (this.storedGasId != null && !this.storedGasId.equals(gasId)) return 0;
+
+        int maxCap = getGasCapacity();
+        int space = maxCap - this.storedGasAmount;
+        int toAdd = Math.min(space, amount);
+
+        if (!simulate && toAdd > 0) {
+            this.storedGasId = gasId;
+            this.storedGasAmount += toAdd;
+            setChanged();
+            sendData();
+        }
+        return toAdd;
+    }
+
+    public int drainGas(int amount, boolean simulate) {
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        if (controllerBE != null && controllerBE != this) {
+            return controllerBE.drainGas(amount, simulate);
+        }
+        if (storedGasAmount <= 0 || storedGasId == null) return 0;
+
+        int toDrain = Math.min(storedGasAmount, amount);
+        if (!simulate && toDrain > 0) {
+            storedGasAmount -= toDrain;
+            if (storedGasAmount <= 0) {
+                storedGasAmount = 0;
+                storedGasId = null;
+            }
+            setChanged();
+            sendData();
+        }
+        return toDrain;
     }
 
     // ========== MULTIBLOCK CONTROLLER LOGIC ==========
 
     public boolean isController() {
         return controller == null || controller.equals(worldPosition);
-    }
-
-    public BlockPos getController() {
-        return isController() ? worldPosition : controller;
     }
 
     @Nullable
@@ -105,8 +160,22 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 .append(Component.translatable("block.create_crude.steel_fluid_tank"))
                 .withStyle(ChatFormatting.GOLD));
 
-        int totalCapacity = controllerBE.width * controllerBE.height * controllerBE.depth * CAPACITY;
+        int totalCapacity = controllerBE.getGasCapacity();
 
+        // Check stored gas first
+        if (controllerBE.getStoredGasAmount() > 0 && controllerBE.getStoredGasId() != null) {
+            ResourceLocation gasId = controllerBE.getStoredGasId();
+            tooltip.add(Component.literal("    ")
+                    .append(Component.translatable("block." + gasId.getNamespace() + "." + gasId.getPath()))
+                    .withStyle(ChatFormatting.GRAY));
+
+            tooltip.add(Component.literal("    ")
+                    .append(Component.literal(String.format("%,d / %,d mB (Gas)", controllerBE.getStoredGasAmount(), totalCapacity)))
+                    .withStyle(ChatFormatting.GOLD));
+            return true;
+        }
+
+        // Standard Fluid HUD Display
         Map<Fluid, Integer> fluidAmounts = new LinkedHashMap<>();
         Map<Fluid, FluidStack> fluidRepresentations = new LinkedHashMap<>();
         int combinedFluidAmount = 0;
@@ -125,7 +194,6 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             tooltip.add(Component.literal("    ")
                     .append(Component.translatable("gui.goggles.empty"))
                     .withStyle(ChatFormatting.GRAY));
-
             tooltip.add(Component.literal("    ")
                     .append(Component.literal(String.format("0 / %,d mB", totalCapacity)))
                     .withStyle(ChatFormatting.DARK_GRAY));
@@ -136,23 +204,19 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             tooltip.add(Component.literal("    ")
                     .append(stack.getHoverName())
                     .withStyle(ChatFormatting.GRAY));
-
             tooltip.add(Component.literal("    ")
                     .append(Component.literal(String.format("%,d / %,d mB", amount, totalCapacity)))
                     .withStyle(ChatFormatting.GOLD));
         } else {
             for (Map.Entry<Fluid, Integer> entry : fluidAmounts.entrySet()) {
                 FluidStack stack = fluidRepresentations.get(entry.getKey());
-                int amount = entry.getValue();
-
                 tooltip.add(Component.literal("    ")
                         .append(stack.getHoverName())
                         .append(": ")
                         .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(String.format("%,d mB", amount))
+                        .append(Component.literal(String.format("%,d mB", entry.getValue()))
                                 .withStyle(ChatFormatting.GOLD)));
             }
-
             tooltip.add(Component.literal("    ")
                     .append(Component.literal("Total: "))
                     .withStyle(ChatFormatting.DARK_GRAY)
@@ -183,25 +247,14 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         int depth = maxZ - minZ + 1;
         int expectedCount = width * depth;
 
-        boolean isCompleteLayer = (layerBlocks.size() == expectedCount);
-
-        if (!isCompleteLayer) {
-            for (BlockPos p : layerBlocks) {
-                resetToSingleTank(p);
-            }
+        if (layerBlocks.size() != expectedCount) {
+            for (BlockPos p : layerBlocks) resetToSingleTank(p);
             return;
         }
 
-        int minY = curY;
-        int maxY = curY;
-
-        while (isLayerCompleteAndMatching(minY - 1, minX, maxX, minZ, maxZ)) {
-            minY--;
-        }
-
-        while (isLayerCompleteAndMatching(maxY + 1, minX, maxX, minZ, maxZ)) {
-            maxY++;
-        }
+        int minY = curY, maxY = curY;
+        while (isLayerCompleteAndMatching(minY - 1, minX, maxX, minZ, maxZ)) minY--;
+        while (isLayerCompleteAndMatching(maxY + 1, minX, maxX, minZ, maxZ)) maxY++;
 
         int height = maxY - minY + 1;
         BlockPos controllerPos = new BlockPos(minX, minY, minZ);
@@ -248,21 +301,15 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
     }
 
     private boolean isLayerCompleteAndMatching(int y, int minX, int maxX, int minZ, int maxZ) {
-        int expectedWidth = maxX - minX + 1;
-        int expectedDepth = maxZ - minZ + 1;
-        int expectedCount = expectedWidth * expectedDepth;
+        int expectedCount = (maxX - minX + 1) * (maxZ - minZ + 1);
 
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 BlockPos p = new BlockPos(x, y, z);
-                if (!(level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity)) {
-                    return false;
-                }
+                if (!(level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity)) return false;
             }
         }
-
-        List<BlockPos> layer = getConnectedLayer(y, new BlockPos(minX, y, minZ));
-        return layer.size() == expectedCount;
+        return getConnectedLayer(y, new BlockPos(minX, y, minZ)).size() == expectedCount;
     }
 
     private void resetToSingleTank(BlockPos pos) {
@@ -311,25 +358,16 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             } else {
                 boolean isXCenter = (dx == w / 2) && (dz == 0 || dz == d - 1);
                 boolean isZCenter = (dz == d / 2) && (dx == 0 || dx == w - 1);
-
-                if (isXCenter || isZCenter) {
-                    shape = SteelFluidTankBlock.TankShape.WINDOW;
-                } else {
-                    shape = SteelFluidTankBlock.TankShape.PLAIN;
-                }
+                shape = (isXCenter || isZCenter) ? SteelFluidTankBlock.TankShape.WINDOW : SteelFluidTankBlock.TankShape.PLAIN;
             }
         }
 
-        if (!controllerBE.window) {
-            shape = SteelFluidTankBlock.TankShape.PLAIN;
-        }
+        if (!controllerBE.window) shape = SteelFluidTankBlock.TankShape.PLAIN;
 
-        BlockState newState = state
+        level.setBlock(worldPosition, state
                 .setValue(SteelFluidTankBlock.TOP, isTop)
                 .setValue(SteelFluidTankBlock.BOTTOM, isBottom)
-                .setValue(SteelFluidTankBlock.SHAPE, shape);
-
-        level.setBlock(worldPosition, newState, 2);
+                .setValue(SteelFluidTankBlock.SHAPE, shape), 2);
     }
 
     public void updateAllShapes() {
@@ -338,8 +376,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             for (int z = 0; z < depth; z++) {
                 for (int y = 0; y < height; y++) {
                     BlockPos pos = worldPosition.offset(x, y, z);
-                    BlockEntity be = level.getBlockEntity(pos);
-                    if (be instanceof SteelFluidTankBlockEntity tankBE) {
+                    if (level.getBlockEntity(pos) instanceof SteelFluidTankBlockEntity tankBE) {
                         tankBE.updateShape();
                     }
                 }
@@ -365,19 +402,12 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         }
     }
 
-    // ========== FLUID HANDLER ==========
-
     public List<SteelFluidTankBlockEntity> getAllTanks() {
         List<SteelFluidTankBlockEntity> list = new ArrayList<>();
-        if (level == null) {
-            list.add(this);
-            return list;
-        }
+        if (level == null) { list.add(this); return list; }
         SteelFluidTankBlockEntity controllerBE = getControllerBE();
-        if (controllerBE == null) {
-            list.add(this);
-            return list;
-        }
+        if (controllerBE == null) { list.add(this); return list; }
+
         for (int x = 0; x < controllerBE.width; x++) {
             for (int z = 0; z < controllerBE.depth; z++) {
                 for (int y = 0; y < controllerBE.height; y++) {
@@ -391,24 +421,17 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         return list;
     }
 
-    // FIX: Isolates fluid interactions strictly to the horizontal Y-level layer!
     public List<SteelFluidTankBlockEntity> getSameLayerTanks() {
         List<SteelFluidTankBlockEntity> list = new ArrayList<>();
-        if (level == null) {
-            list.add(this);
-            return list;
-        }
+        if (level == null) { list.add(this); return list; }
         SteelFluidTankBlockEntity controllerBE = getControllerBE();
-        if (controllerBE == null) {
-            list.add(this);
-            return list;
-        }
+        if (controllerBE == null) { list.add(this); return list; }
+
         for (int x = 0; x < controllerBE.width; x++) {
             for (int z = 0; z < controllerBE.depth; z++) {
                 for (int y = 0; y < controllerBE.height; y++) {
                     BlockPos p = controllerBE.worldPosition.offset(x, y, z);
                     if (level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity tankBE) {
-                        // Confines fluid network strictly to the same horizontal layer level!
                         if (p.getY() == this.worldPosition.getY()) {
                             list.add(tankBE);
                         }
@@ -416,39 +439,25 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 }
             }
         }
-        if (list.isEmpty()) {
-            list.add(this);
-        }
-        return list;
+        return list.isEmpty() ? List.of(this) : list;
     }
 
     public IFluidHandler getFluidHandler(@Nullable Direction side) {
         return new IFluidHandler() {
-            private List<SteelFluidTankBlockEntity> getTankList() {
-                return getSameLayerTanks();
-            }
+            private List<SteelFluidTankBlockEntity> getTankList() { return getSameLayerTanks(); }
 
-            @Override
-            public int getTanks() {
-                return getTankList().size();
-            }
+            @Override public int getTanks() { return getTankList().size(); }
 
             @Override
             public FluidStack getFluidInTank(int tankIndex) {
                 List<SteelFluidTankBlockEntity> tanks = getTankList();
-                if (tankIndex >= 0 && tankIndex < tanks.size()) {
-                    return tanks.get(tankIndex).getTank().getFluidInTank(0);
-                }
-                return FluidStack.EMPTY;
+                return (tankIndex >= 0 && tankIndex < tanks.size()) ? tanks.get(tankIndex).getTank().getFluidInTank(0) : FluidStack.EMPTY;
             }
 
             @Override
             public int getTankCapacity(int tankIndex) {
                 List<SteelFluidTankBlockEntity> tanks = getTankList();
-                if (tankIndex >= 0 && tankIndex < tanks.size()) {
-                    return tanks.get(tankIndex).getTank().getTankCapacity(0);
-                }
-                return 0;
+                return (tankIndex >= 0 && tankIndex < tanks.size()) ? tanks.get(tankIndex).getTank().getTankCapacity(0) : 0;
             }
 
             @Override
@@ -456,28 +465,13 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 if (stack.isEmpty()) return false;
                 Fluid fluid = stack.getFluid();
                 switch (productIndex) {
-                    case -1 -> {
-                        // Base Layer (Boiler): STRICTLY Crude Oil!
-                        return fluid == ModFluids.CRUDE_OIL_SOURCE.get();
-                    }
-                    case 0 -> {
-                        return fluid == ModFluids.BITUMEN_SOURCE.get();
-                    }
-                    case 1 -> {
-                        return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get();
-                    }
-                    case 2 -> {
-                        return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get();
-                    }
-                    case 3 -> {
-                        return fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get();
-                    }
-                    case 4 -> {
-                        return fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();
-                    }
-                    case 5 -> {
-                        return fluid == ModFluids.DIESEL_SOURCE.get();
-                    }
+                    case -1 -> { return fluid == ModFluids.CRUDE_OIL_SOURCE.get(); }
+                    case 0 -> { return fluid == ModFluids.BITUMEN_SOURCE.get(); }
+                    case 1 -> { return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get(); }
+                    case 2 -> { return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get(); }
+                    case 3 -> { return fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get(); }
+                    case 4 -> { return fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get(); }
+                    case 5 -> { return fluid == ModFluids.DIESEL_SOURCE.get(); }
                 }
                 return true;
             }
@@ -491,8 +485,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
                     if (!internal.isEmpty() && internal.getFluid().getFluid() == resource.getFluid()) {
-                        FluidStack partial = resource.copyWithAmount(remaining);
-                        int filled = internal.fill(partial, action);
+                        int filled = internal.fill(resource.copyWithAmount(remaining), action);
                         filledTotal += filled;
                         remaining -= filled;
                         if (remaining <= 0) return filledTotal;
@@ -501,8 +494,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
                     if (internal.isEmpty()) {
-                        FluidStack partial = resource.copyWithAmount(remaining);
-                        int filled = internal.fill(partial, action);
+                        int filled = internal.fill(resource.copyWithAmount(remaining), action);
                         filledTotal += filled;
                         remaining -= filled;
                         if (remaining <= 0) return filledTotal;
@@ -514,8 +506,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             @Override
             public FluidStack drain(FluidStack resource, FluidAction action) {
                 if (resource.isEmpty()) return FluidStack.EMPTY;
-                List<SteelFluidTankBlockEntity> tanks = getTankList();
-                for (SteelFluidTankBlockEntity tankBE : tanks) {
+                for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
                     if (internal.getFluid().getFluid() == resource.getFluid()) {
                         return internal.drain(resource, action);
@@ -527,8 +518,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             @Override
             public FluidStack drain(int maxDrain, FluidAction action) {
                 if (maxDrain <= 0) return FluidStack.EMPTY;
-                List<SteelFluidTankBlockEntity> tanks = getTankList();
-                for (SteelFluidTankBlockEntity tankBE : tanks) {
+                for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
                     if (!internal.isEmpty()) {
                         return internal.drain(maxDrain, action);
@@ -542,63 +532,81 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
     public void tick() {
         if (level == null) return;
 
-        // Run client-side particle logic
         if (level.isClientSide) {
             tickClient();
             return;
         }
 
-        // Server-side multiblock connectivity logic
         if (updateConnectivity) {
             updateConnectivity = false;
             tryFormMultiblock();
         }
     }
+
+    // ========== DENSE GAS PARTICLE RENDERER ==========
+
     private void tickClient() {
-        if (!isController() || level == null) return;
+        SteelFluidTankBlockEntity controllerBE = getControllerBE();
+        if (controllerBE == null || !isController() || level == null) return;
 
+        ResourceLocation gasId = controllerBE.getStoredGasId();
+        int gasAmount = controllerBE.getStoredGasAmount();
+
+        if (gasId == null || gasAmount <= 0) return;
+
+        ParticleOptions particle = getGasParticleFromId(gasId);
+        if (particle == null) return;
+
+        float fillRatio = (float) gasAmount / controllerBE.getGasCapacity();
+        if (fillRatio <= 0) return;
+
+        BlockPos controllerPos = controllerBE.getBlockPos();
+
+        // Render dense particles safely inside the inner glass bounds of the multiblock structure
         for (SteelFluidTankBlockEntity tankBE : getAllTanks()) {
-            FluidStack stack = tankBE.getTank().getFluid();
-            if (stack.isEmpty()) continue;
+            int particleCount = (int) (1 + fillRatio * 4);
+            BlockPos bPos = tankBE.getBlockPos();
 
-            ParticleOptions particle = getGasParticle(stack);
-            if (particle == null) continue;
+            boolean isTopLayer = (bPos.getY() == controllerPos.getY() + controllerBE.height - 1);
+            boolean isBottomLayer = (bPos.getY() == controllerPos.getY());
 
-            float fillRatio = (float) stack.getAmount() / tankBE.getTank().getCapacity();
-            if (fillRatio <= 0) continue;
+            double minY = bPos.getY() + (isBottomLayer ? 0.25 : 0.08);
+            double maxY = bPos.getY() + (isTopLayer ? 0.75 : 0.92);
+            double currentGasMaxY = minY + (maxY - minY) * fillRatio;
 
-            if (level.random.nextFloat() < 0.25f * fillRatio) {
-                BlockPos bPos = tankBE.getBlockPos();
+            for (int i = 0; i < particleCount; i++) {
+                if (level.random.nextFloat() < 0.6f * fillRatio) {
+                    // Safe inset (0.18 -> 0.82) keeps particles well inside the glass frame
+                    double x = bPos.getX() + 0.18 + level.random.nextDouble() * 0.64;
+                    double y = minY + level.random.nextDouble() * Math.max(0.05, currentGasMaxY - minY);
+                    double z = bPos.getZ() + 0.18 + level.random.nextDouble() * 0.64;
 
-                double x = bPos.getX() + 0.15 + level.random.nextDouble() * 0.7;
-                double y = bPos.getY() + 0.15 + level.random.nextDouble() * 0.7 * fillRatio;
-                double z = bPos.getZ() + 0.15 + level.random.nextDouble() * 0.7;
+                    // Near-zero velocity stops particles from drifting through walls
+                    double vx = (level.random.nextDouble() - 0.5) * 0.002;
+                    double vy = (level.random.nextDouble() - 0.5) * 0.002;
+                    double vz = (level.random.nextDouble() - 0.5) * 0.002;
 
-                double vx = (level.random.nextDouble() - 0.5) * 0.01;
-                double vy = 0.005 + level.random.nextDouble() * 0.01;
-                double vz = (level.random.nextDouble() - 0.5) * 0.01;
-
-                level.addParticle(particle, x, y, z, vx, vy, vz);
+                    level.addParticle(particle, x, y, z, vx, vy, vz);
+                }
             }
         }
     }
+
     @Nullable
-    private ParticleOptions getGasParticle(FluidStack stack) {
-        if (stack.isEmpty()) return null;
+    private ParticleOptions getGasParticleFromId(ResourceLocation gasId) {
+        String path = gasId.getPath().toLowerCase();
 
-        boolean isGas = stack.getFluid().getFluidType().isLighterThanAir();
-        String descriptionId = stack.getFluid().getFluidType().getDescriptionId().toLowerCase();
+        if (path.contains("lpg")) return ModParticles.LPG_CLOUDS.get();
+        if (path.contains("methane")) return ModParticles.METHANE_CLOUDS.get();
+        if (path.contains("ethane")) return ModParticles.ETHANE_CLOUDS.get();
+        if (path.contains("propane")) return ModParticles.PROPANE_CLOUDS.get();
+        if (path.contains("butane")) return ModParticles.BUTANE_CLOUDS.get();
+        if (path.contains("hydrogen")) return ModParticles.HYDROGEN_CLOUDS.get();
 
-        if (descriptionId.contains("lpg")) return ModParticles.LPG_CLOUDS.get();
-        if (descriptionId.contains("methane")) return ModParticles.METHANE_CLOUDS.get();
-        if (descriptionId.contains("ethane")) return ModParticles.ETHANE_CLOUDS.get();
-        if (descriptionId.contains("propane")) return ModParticles.PROPANE_CLOUDS.get();
-        if (descriptionId.contains("butane")) return ModParticles.BUTANE_CLOUDS.get();
-        if (descriptionId.contains("hydrogen")) return ModParticles.HYDROGEN_CLOUDS.get();
-
-        return isGas ? ModParticles.METHANE_CLOUDS.get() : null;
+        return ModParticles.METHANE_CLOUDS.get();
     }
-    // ========== NBT ==========
+
+    // ========== NBT SERIALIZATION ==========
 
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
@@ -610,6 +618,10 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         tag.putInt("Width", width);
         tag.putInt("Depth", depth);
         tag.putBoolean("Window", window);
+
+        // Save gas payload
+        if (storedGasId != null) tag.putString("GasId", storedGasId.toString());
+        tag.putInt("GasAmount", storedGasAmount);
     }
 
     @Override
@@ -618,18 +630,25 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         tank.readFromNBT(registries, tag.getCompound("fluid"));
         productIndex = tag.getInt("productIndex");
         if (tag.contains("Controller")) {
-            controller = NbtUtils.readBlockPos(tag, "Controller").get();
+            controller = NbtUtils.readBlockPos(tag, "Controller").orElse(null);
         } else {
             controller = null;
         }
-        height = tag.getInt("Height");
-        if (height < 1) height = 1;
-        width = tag.getInt("Width");
-        if (width < 1) width = 1;
-        depth = tag.getInt("Depth");
-        if (depth < 1) depth = 1;
+        height = Math.max(1, tag.getInt("Height"));
+        width = Math.max(1, tag.getInt("Width"));
+        depth = Math.max(1, tag.getInt("Depth"));
         window = tag.getBoolean("Window");
-        updateConnectivity = true;
+
+        // Load gas payload
+        if (tag.contains("GasId")) {
+            storedGasId = ResourceLocation.parse(tag.getString("GasId"));
+        } else {
+            storedGasId = null;
+        }
+        storedGasAmount = tag.getInt("GasAmount");
+
+        // FIX: DO NOT set updateConnectivity = true here!
+        // Loading NBT packets on sync shouldn't break and reform multiblocks!
     }
 
     @Override

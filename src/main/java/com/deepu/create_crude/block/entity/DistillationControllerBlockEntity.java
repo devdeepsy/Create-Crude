@@ -23,7 +23,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -289,8 +288,8 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
                 BlockPos pos = productTankPositions.get(blockOffset + i);
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof SteelFluidTankBlockEntity tankBE) {
-                    // Check if the dedicated product layer block has room!
-                    if (tankBE.fillTank(outputFluid, IFluidHandler.FluidAction.SIMULATE) < perBlockAmount) {
+                    // Check if the dedicated product layer block has room via its fluid handler capability!
+                    if (tankBE.getFluidHandler(null).fill(outputFluid, IFluidHandler.FluidAction.SIMULATE) < perBlockAmount) {
                         return false;
                     }
                 }
@@ -315,7 +314,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
                 BlockPos pos = productTankPositions.get(blockOffset + i);
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof SteelFluidTankBlockEntity tankBE) {
-                    tankBE.fillTank(fluid, IFluidHandler.FluidAction.EXECUTE);
+                    tankBE.getFluidHandler(null).fill(fluid, IFluidHandler.FluidAction.EXECUTE);
                 }
             }
             blockOffset += blocksForProduct;

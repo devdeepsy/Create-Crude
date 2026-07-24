@@ -1,18 +1,15 @@
 package com.deepu.create_crude.gases;
 
 import com.deepu.create_crude.CreateCrude;
-import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
+import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.gases.network.GasPayload;
 import com.simibubi.create.content.fluids.pump.PumpBlock;
 import com.simibubi.create.content.fluids.pump.PumpBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-
-import javax.annotation.Nullable;
 
 public class SteelPumpBlockEntity extends PumpBlockEntity {
 
@@ -34,24 +31,39 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
         BlockPos frontPos = getBlockPos().relative(facing);
 
         BlockEntity backBE = level.getBlockEntity(backPos);
-        if (!(backBE instanceof GasAwarePipeBlockEntity backPipe)) return;
-        GasPayload payload = backPipe.getGasPayload();
-        if (payload == null) return; 
-
         BlockEntity frontBE = level.getBlockEntity(frontPos);
-        
+
+        GasPayload payload = null;
+
+        // 1. Extract Gas Payload from intake side (Pipe or Fluid Tank)
+        if (backBE instanceof GasAwarePipeBlockEntity backPipe) {
+            payload = backPipe.getGasPayload();
+        } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
+            if (backTank.getStoredGasAmount() >= 1000 && backTank.getStoredGasId() != null) {
+                payload = new GasPayload(backTank.getStoredGasId(), 5);
+            }
+        }
+
+        if (payload == null) return;
+
+        int speed = Math.abs((int) getSpeed());
+        int delay = speed > 0 ? Math.max(1, Math.min(20, 256 / speed)) : 5;
+
+        // 2. Push Gas Payload to output side
         if (frontBE instanceof GasAwarePipeBlockEntity frontPipe) {
-            if (frontPipe.hasGas()) return; 
+            if (frontPipe.hasGas()) return;
 
-            frontPipe.setGas(payload, facing.getOpposite()); 
-            backPipe.clearGas();
-
-            // FIX: Directly use pump speed metrics to schedule output pipe tick rates
-            int speed = Math.abs((int) getSpeed());
-            int delay = speed > 0 ? Math.max(1, Math.min(20, 256 / speed)) : 5;
+            frontPipe.setGas(payload, facing.getOpposite());
+            clearGasFromSource(backBE);
 
             if (!level.getBlockTicks().hasScheduledTick(frontPos, frontPipe.getBlockState().getBlock())) {
                 level.scheduleTick(frontPos, frontPipe.getBlockState().getBlock(), delay);
+            }
+        } else if (frontBE instanceof SteelFluidTankBlockEntity frontTank) {
+            // Flow directly into tank!
+            int filled = frontTank.fillGas(payload.gasBlockId(), 1000, false);
+            if (filled > 0) {
+                clearGasFromSource(backBE);
             }
         } else if (level.getBlockState(frontPos).canBeReplaced()) {
             Block gasBlock = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(payload.gasBlockId());
@@ -60,7 +72,15 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
                         .setValue(GasBlock.RADIUS, Math.min(payload.radius(), GasBlock.MAX_RADIUS))
                         .setValue(GasBlock.SOURCE, false), 3);
             }
+            clearGasFromSource(backBE);
+        }
+    }
+
+    private void clearGasFromSource(BlockEntity backBE) {
+        if (backBE instanceof GasAwarePipeBlockEntity backPipe) {
             backPipe.clearGas();
+        } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
+            backTank.drainGas(1000, false);
         }
     }
 }

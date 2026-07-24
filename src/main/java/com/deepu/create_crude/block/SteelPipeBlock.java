@@ -1,6 +1,7 @@
 package com.deepu.create_crude.block;
 
 import com.deepu.create_crude.CreateCrude;
+import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
 import com.deepu.create_crude.gases.network.GasPayload;
 import com.deepu.create_crude.gases.GasBlock;
@@ -57,18 +58,33 @@ public class SteelPipeBlock extends FluidPipeBlock {
         if (!level.isClientSide) {
             if (level.getBlockEntity(pos) instanceof GasAwarePipeBlockEntity pipeBE && !pipeBE.hasGas()) {
                 if (!pipeBE.isPumpDrivingNetwork()) return;
+
+                Direction dir = getDirectionFromPositions(pos, neighborPos);
+                if (dir == null) return;
+                BooleanProperty connProp = getConnectionProperty(dir);
+                if (connProp == null || !state.getValue(connProp)) return;
+
                 BlockState neighborState = level.getBlockState(neighborPos);
+
+                // 1. Pull from world GasBlock
                 if (neighborState.getBlock() instanceof GasBlock gasBlock) {
-                    Direction dir = getDirectionFromPositions(pos, neighborPos);
-                    if (dir == null) return;
-                    BooleanProperty connProp = getConnectionProperty(dir);
-                    if (connProp != null && state.getValue(connProp)) {
-                        ResourceLocation gasId = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(gasBlock);
-                        int radius = neighborState.getValue(GasBlock.RADIUS);
-                        level.removeBlock(neighborPos, false);
-                        pipeBE.setGas(new GasPayload(gasId, radius), dir);
-                        
-                        // FIX: Dynamic delay based on pump speed when pulling gas into network
+                    ResourceLocation gasId = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(gasBlock);
+                    int radius = neighborState.getValue(GasBlock.RADIUS);
+                    level.removeBlock(neighborPos, false);
+                    pipeBE.setGas(new GasPayload(gasId, radius), dir);
+
+                    int delay = pipeBE.getTickDelay();
+                    if (!level.getBlockTicks().hasScheduledTick(pos, this)) {
+                        level.scheduleTick(pos, this, delay);
+                    }
+                }
+                // 2. Pull from SteelFluidTankBlockEntity
+                else if (level.getBlockEntity(neighborPos) instanceof SteelFluidTankBlockEntity tankBE) {
+                    if (tankBE.getStoredGasAmount() >= 1000 && tankBE.getStoredGasId() != null) {
+                        ResourceLocation gasId = tankBE.getStoredGasId();
+                        tankBE.drainGas(1000, false);
+                        pipeBE.setGas(new GasPayload(gasId, 5), dir);
+
                         int delay = pipeBE.getTickDelay();
                         if (!level.getBlockTicks().hasScheduledTick(pos, this)) {
                             level.scheduleTick(pos, this, delay);
@@ -86,12 +102,10 @@ public class SteelPipeBlock extends FluidPipeBlock {
         }
     }
 
-    // Helper to get direction from pos to target (both adjacent)
     private Direction getDirectionFromPositions(BlockPos from, BlockPos to) {
         int dx = to.getX() - from.getX();
         int dy = to.getY() - from.getY();
         int dz = to.getZ() - from.getZ();
-        // Since they are adjacent, exactly one of dx, dy, dz will be non-zero
         for (Direction dir : Direction.values()) {
             if (dir.getNormal().getX() == dx && dir.getNormal().getY() == dy && dir.getNormal().getZ() == dz) {
                 return dir;
@@ -100,7 +114,6 @@ public class SteelPipeBlock extends FluidPipeBlock {
         return null;
     }
 
-    // Helper to get the BooleanProperty for a given Direction (from FluidPipeBlock)
     private BooleanProperty getConnectionProperty(Direction dir) {
         switch (dir) {
             case NORTH: return FluidPipeBlock.NORTH;

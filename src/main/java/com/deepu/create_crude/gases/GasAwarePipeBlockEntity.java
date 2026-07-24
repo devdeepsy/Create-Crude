@@ -1,6 +1,7 @@
 package com.deepu.create_crude.gases;
 
 import com.deepu.create_crude.CreateCrude;
+import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.gases.network.GasPayload;
 import com.simibubi.create.content.fluids.pipes.FluidPipeBlock;
 import com.simibubi.create.content.fluids.pipes.FluidPipeBlockEntity;
@@ -31,8 +32,6 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         super(CreateCrude.GAS_AWARE_PIPE_BE.get(), pos, state);
     }
 
-    // ---- Gas handling ----
-
     public boolean hasGas() {
         return gasPayload != null;
     }
@@ -60,11 +59,11 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
     }
 
     public int getTickDelay() {
-        int speed = findDrivingPumpSpeed(this.level, this.worldPosition, new java.util.HashSet<>(), 0);
-        if (speed <= 0) return 5; // Passive/fallback tick delay if pump is off
-        // Maps Create RPM (up to 256) directly to a game-tick delay (1 to 20 ticks)
+        int speed = findDrivingPumpSpeed(this.level, this.worldPosition, new HashSet<>(), 0);
+        if (speed <= 0) return 5;
         return Math.max(1, Math.min(20, 256 / speed));
     }
+
     private static int findDrivingPumpSpeed(Level level, BlockPos pos, Set<BlockPos> visited, int depth) {
         if (depth > 48 || !visited.add(pos)) return 0;
 
@@ -97,10 +96,8 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         return 0;
     }
 
-
     private static boolean scanForActivePump(Level level, BlockPos pos, Set<BlockPos> visited, int depth) {
-        if (depth > 48) return false; 
-        if (!visited.add(pos)) return false;
+        if (depth > 48 || !visited.add(pos)) return false;
 
         BlockState state = level.getBlockState(pos);
         if (!(state.getBlock() instanceof FluidPipeBlock)) return false;
@@ -116,14 +113,8 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
             if (be instanceof SteelPumpBlockEntity pumpBE) {
                 if (pumpBE.getSpeed() != 0) {
                     Direction pumpFacing = neighborState.getValue(PumpBlock.FACING);
-                    
-                    // FIX: Ensure this pipe network path connects to the INTAKE side of the pump.
-                    // 'dir' is the direction from the pipe to the pump.
-                    // If a pump faces EAST, it pulls from the WEST. This means the intake pipe is WEST of the pump.
-                    // From that pipe's perspective, the pump is to its EAST (dir = EAST).
-                    // Therefore, matching pumpFacing == dir limits suction exclusively to the intake side.
                     if (pumpFacing == dir) {
-                        return true; 
+                        return true;
                     }
                 }
             } else if (be instanceof GasAwarePipeBlockEntity) {
@@ -152,11 +143,8 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         }
     }
 
-    // ---- Tick logic ----
-
     public static void tick(Level level, BlockPos pos, BlockState state, GasAwarePipeBlockEntity be) {
-        if (level.isClientSide) return;
-        if (!be.hasGas()) return;
+        if (level.isClientSide || !be.hasGas()) return;
 
         // 1. Check if sitting directly against an active SteelPump input face
         for (Direction dir : Direction.values()) {
@@ -167,13 +155,13 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
                     BlockState pumpState = level.getBlockState(neighborPos);
                     Direction pumpFacing = pumpState.getValue(PumpBlock.FACING);
                     if (pumpFacing == dir) {
-                        return; // Retain payload inside this pipe segment for the pump to extract
+                        return;
                     }
                 }
             }
         }
 
-        // 2. Try to propagate to an onward connected pipe with dynamic speed delays
+        // 2. Propagate to onward connected pipe
         Direction nextDir = be.findNextDirection(level, pos, state);
         if (nextDir != null) {
             BlockPos nextPos = pos.relative(nextDir);
@@ -181,8 +169,7 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
                 Direction nextIncoming = nextDir.getOpposite();
                 nextBe.setGas(be.gasPayload, nextIncoming);
                 be.clearGas();
-                
-                // Apply dynamic speed delay to the scheduled tick
+
                 int delay = be.getTickDelay();
                 if (!level.getBlockTicks().hasScheduledTick(nextPos, state.getBlock())) {
                     level.scheduleTick(nextPos, state.getBlock(), delay);
@@ -191,45 +178,61 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
             }
         }
 
-        // 3. Terminal pipe reached -> Vent out into the open world safely
+        // 3. Terminal pipe reached -> Vent into Tank or World
         be.ventGasToWorld(level, pos, state);
     }
 
     private void ventGasToWorld(Level level, BlockPos pos, BlockState state) {
         if (gasPayload == null) return;
         Block gasBlock = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(gasPayload.gasBlockId());
-        if (!(gasBlock instanceof GasBlock)) {
-            clearGas();
-            return;
-        }
 
-        // Try primary straight-line vector continuation first
         Direction primaryDir = incomingDirection != null ? incomingDirection.getOpposite() : Direction.UP;
         BlockPos primaryPos = pos.relative(primaryDir);
 
-        if (level.getBlockState(primaryPos).canBeReplaced() && !(level.getBlockEntity(primaryPos) instanceof GasAwarePipeBlockEntity)) {
-            level.setBlock(primaryPos, gasBlock.defaultBlockState()
-                    .setValue(GasBlock.RADIUS, Math.min(gasPayload.radius(), GasBlock.MAX_RADIUS))
-                    .setValue(GasBlock.SOURCE, false), 3);
-            clearGas();
-            return;
-        }
-
-        // Smart Fallback Scanner: Look in all alternative directions for any open air space to prevent item deletion
-        for (Direction dir : Direction.values()) {
-            if (incomingDirection != null && dir == incomingDirection) continue; // Do not push gas backwards
-
-            BlockPos fallbackPos = pos.relative(dir);
-            if (level.getBlockState(fallbackPos).canBeReplaced() && !(level.getBlockEntity(fallbackPos) instanceof GasAwarePipeBlockEntity)) {
-                level.setBlock(fallbackPos, gasBlock.defaultBlockState()
-                        .setValue(GasBlock.RADIUS, Math.min(gasPayload.radius(), GasBlock.MAX_RADIUS))
-                        .setValue(GasBlock.SOURCE, false), 3);
+        // Check if primary exit face is a SteelFluidTankBlockEntity
+        if (level.getBlockEntity(primaryPos) instanceof SteelFluidTankBlockEntity tankBE) {
+            int filled = tankBE.fillGas(gasPayload.gasBlockId(), 1000, false);
+            if (filled > 0) {
                 clearGas();
                 return;
             }
         }
 
-        // Ultimate safety clearance if completely boxed in solid blocks
+        if (level.getBlockState(primaryPos).canBeReplaced() && !(level.getBlockEntity(primaryPos) instanceof GasAwarePipeBlockEntity)) {
+            if (gasBlock instanceof GasBlock) {
+                level.setBlock(primaryPos, gasBlock.defaultBlockState()
+                        .setValue(GasBlock.RADIUS, Math.min(gasPayload.radius(), GasBlock.MAX_RADIUS))
+                        .setValue(GasBlock.SOURCE, false), 3);
+            }
+            clearGas();
+            return;
+        }
+
+        // Fallback Scanner: Look in all alternative directions
+        for (Direction dir : Direction.values()) {
+            if (incomingDirection != null && dir == incomingDirection) continue;
+
+            BlockPos fallbackPos = pos.relative(dir);
+
+            if (level.getBlockEntity(fallbackPos) instanceof SteelFluidTankBlockEntity tankBE) {
+                int filled = tankBE.fillGas(gasPayload.gasBlockId(), 1000, false);
+                if (filled > 0) {
+                    clearGas();
+                    return;
+                }
+            }
+
+            if (level.getBlockState(fallbackPos).canBeReplaced() && !(level.getBlockEntity(fallbackPos) instanceof GasAwarePipeBlockEntity)) {
+                if (gasBlock instanceof GasBlock) {
+                    level.setBlock(fallbackPos, gasBlock.defaultBlockState()
+                            .setValue(GasBlock.RADIUS, Math.min(gasPayload.radius(), GasBlock.MAX_RADIUS))
+                            .setValue(GasBlock.SOURCE, false), 3);
+                }
+                clearGas();
+                return;
+            }
+        }
+
         clearGas();
     }
 
@@ -254,19 +257,10 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         BooleanProperty fromProp = getPipeProperty(fromState.getBlock(), dir);
         BooleanProperty toProp = getPipeProperty(toState.getBlock(), dir.getOpposite());
         if (fromProp == null || toProp == null) return false;
-        
-        // Safety check to ensure both block states possess these properties before checking values
         if (!fromState.hasProperty(fromProp) || !toState.hasProperty(toProp)) return false;
-        
+
         return fromState.getValue(fromProp) && toState.getValue(toProp);
     }
-
-    @Nullable
-    private BooleanProperty getConnectionProperty(Direction dir) {
-        return getPipeProperty(getBlockState().getBlock(), dir);
-    }
-
-    // ---- NBT serialisation ----
 
     @Override
     protected void write(CompoundTag tag, HolderLookup.Provider registries, boolean includeAll) {
