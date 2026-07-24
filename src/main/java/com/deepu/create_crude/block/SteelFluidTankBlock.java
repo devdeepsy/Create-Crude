@@ -179,7 +179,7 @@ public class SteelFluidTankBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? null : (lvl, pos, st, be) -> {
+        return (lvl, pos, st, be) -> {
             if (be instanceof SteelFluidTankBlockEntity tankBE) {
                 tankBE.tick();
             }

@@ -52,8 +52,8 @@ public class DistillationContainerMenu extends AbstractContainerMenu {
             if (be == null) return;
         }
 
-        data.set(INPUT_AMOUNT, be.getInputTank().getFluidAmount());
-        data.set(INPUT_CAPACITY, be.getInputTank().getCapacity());
+        data.set(INPUT_AMOUNT, be.getCrudeOilInBaseTanks());
+        data.set(INPUT_CAPACITY, be.getCrudeOilCapacityInBaseTanks());
 
         for (int i = 0; i < 6; i++) {
             int idx = OUTPUT_START + i * 2;

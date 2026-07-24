@@ -281,8 +281,6 @@ public class CreateCrude {
             }
             return be.getInternalTank();
         });
-        event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, DISTILLATION_CONTROLLER_BE.get(),
-            (be, side) -> be.getInputCapability(side));
         event.registerBlockEntity(
             Capabilities.FluidHandler.BLOCK,              // The capability type
             CreateCrude.STEEL_FLUID_TANK_BE.get(),        // Your BlockEntity Type registry object

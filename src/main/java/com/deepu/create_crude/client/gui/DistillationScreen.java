@@ -36,7 +36,7 @@ public class DistillationScreen extends AbstractContainerScreen<DistillationCont
         if (be == null) return;
 
         // Input bar
-        FluidStack inputFluid = be.getInputTank().getFluid();
+        FluidStack inputFluid = new FluidStack(be.getInputFluid(), Math.max(1, menu.getInputAmount()));
         if (inputFluid.isEmpty()) {
             // Use the crude oil fluid type for color even if tank is empty
             inputFluid = new FluidStack(be.getInputFluid(), 1);

@@ -1,6 +1,5 @@
 package com.deepu.create_crude.client.renderer;
 
-import com.deepu.create_crude.block.SteelFluidTankBlock;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.createmod.catnip.platform.NeoForgeCatnipServices;
@@ -16,8 +15,9 @@ import java.util.List;
 
 public class SteelFluidTankRenderer implements BlockEntityRenderer<SteelFluidTankBlockEntity> {
 
-    private static final float CAP_HEIGHT = 0.25f;   // Frame cap inset
-    private static final float HULL_WIDTH = 0.0703125f; // Frame side inset
+    private static final float CAP_HEIGHT = 0.25f;        // Frame cap inset
+    private static final float HULL_WIDTH = 0.0703125f;   // Frame side inset
+    private static final float MIN_FLUID_HEIGHT = 0.0625f; // 1 pixel (1/16th block) base floor thickness
 
     public SteelFluidTankRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -26,7 +26,7 @@ public class SteelFluidTankRenderer implements BlockEntityRenderer<SteelFluidTan
     public void render(SteelFluidTankBlockEntity be, float partialTick, PoseStack ms,
                        MultiBufferSource buffer, int light, int overlay) {
 
-        // 1. MUST ONLY render from the controller (North-West Bottom origin)
+        // 1. MUST ONLY render from the controller
         if (!be.isController()) return;
 
         Level level = be.getLevel();
@@ -36,7 +36,7 @@ public class SteelFluidTankRenderer implements BlockEntityRenderer<SteelFluidTan
         int depth = be.depth;
         int height = be.height;
 
-        // 2. Expand render bounds across full multiblock dimensions (e.g., 2x2 or 3x3)
+        // 2. Expand render bounds across full multiblock dimensions
         float xMin = HULL_WIDTH;
         float xMax = (float) width - HULL_WIDTH;
         float zMin = HULL_WIDTH;
@@ -91,19 +91,23 @@ public class SteelFluidTankRenderer implements BlockEntityRenderer<SteelFluidTan
 
             for (FluidStack fluidStack : layerFluids) {
                 float fluidFraction = (float) fluidStack.getAmount() / (float) totalCapacity;
-                float fluidBoxHeight = fluidFraction * availableLayerHeight;
-
-                if (fluidBoxHeight <= 0.001f) continue;
+                
+                // Enforce minimum 1-pixel base puddle height
+                float rawHeight = fluidFraction * availableLayerHeight;
+                float fluidBoxHeight = Math.max(MIN_FLUID_HEIGHT, rawHeight);
+                fluidBoxHeight = Math.min(availableLayerHeight, fluidBoxHeight);
 
                 float yMin = currentY;
                 float yMax = currentY + fluidBoxHeight;
 
                 ms.pushPose();
+                // FIX: Changed the 11th parameter from 'false' to 'true'!
+                // Parameters: (fluid, xMin, yMin, zMin, xMax, yMax, zMax, buffer, ms, light, renderTopAndBottom, renderSides)
                 NeoForgeCatnipServices.FLUID_RENDERER.renderFluidBox(
                         fluidStack,
                         xMin, yMin, zMin,
                         xMax, yMax, zMax,
-                        buffer, ms, light, false, true
+                        buffer, ms, light, true, true
                 );
                 ms.popPose();
 
