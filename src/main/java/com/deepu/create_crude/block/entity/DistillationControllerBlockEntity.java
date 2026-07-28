@@ -5,6 +5,9 @@ import com.deepu.create_crude.ModFluids;
 import com.deepu.create_crude.SulfurFluids;
 import com.deepu.create_crude.block.DistillationControllerBlock;
 import com.deepu.create_crude.client.gui.DistillationContainerMenu;
+import com.deepu.create_crude.gases.GasBlock;
+import com.deepu.create_crude.gases.GasRegistry;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
@@ -21,15 +24,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
+import net.minecraft.world.level.material.Fluids;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.resources.ResourceLocation;
 
 public class DistillationControllerBlockEntity extends BlockEntity implements MenuProvider {
-    // Product order: 0=Bitumen, 1=Diesel, 2=Kerosene, 3=Gasoline, 4=Naphtha, 5=LPG
+    // Product order: 0=Heavy Oil/Bitumen, 1=Sulfur Diesel, 2=Sulfur Kerosene, 3=Sulfur Gasoline, 4=Sulfur Naphtha, 5=LPG
     private static final int PRODUCT_COUNT = 6;
 
     private int progress = 0;
@@ -42,12 +47,15 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
     private int[] productDistribution = new int[PRODUCT_COUNT];
     private int heatLevel = 0;
     
-    // Completely separate lists so Base Layer never mixes with Output Layers!
+    // Base Layer separate from Output Layers
     private final List<BlockPos> baseTankPositions = new ArrayList<>();
     private final List<BlockPos> productTankPositions = new ArrayList<>();
 
     public DistillationControllerBlockEntity(BlockPos pos, BlockState state) {
         super(CreateCrude.DISTILLATION_CONTROLLER_BE.get(), pos, state);
+    }
+    private boolean isGasProduct(int index) {
+        return index == 5; // Layer 6: LPG
     }
 
     // ---------- Server Tick ----------
@@ -114,7 +122,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             return;
         }
 
-        // 1 Base Layer + 6 Product Layers = Minimum 7 height required!
+        // 1 Base Layer + 6 Product Layers = Minimum 7 height required
         if (h < 7) {
             valid = false;
             return;
@@ -133,7 +141,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
 
         this.footprintArea = w * d;
         this.towerHeight = h;
-        // Distribute the remaining (h - 1) layers among our 6 products!
         this.productDistribution = computeDistribution(h - 1);
         this.valid = true;
 
@@ -152,13 +159,13 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
                 BlockPos p = basePos.offset(x, 0, z);
                 baseTankPositions.add(p);
                 if (level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity tBE) {
-                    tBE.setProductIndex(-1); // -1 = Crude Oil Base Layer
+                    tBE.setProductIndex(-1);
                 }
             }
         }
 
         // 2. LAYERS 1+ (Upper Layers): Exclusively for Product Outputs (0 to 5 index)
-        int currentLayerY = 1; // Start strictly ABOVE the base layer!
+        int currentLayerY = 1;
         for (int product = 0; product < PRODUCT_COUNT; product++) {
             int layerCount = productDistribution[product];
             for (int l = 0; l < layerCount; l++) {
@@ -216,6 +223,12 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         }
         return 0;
     }
+    private ResourceLocation getGasIdForIndex(int index) {
+        return switch (index) {
+            case 5 -> ResourceLocation.fromNamespaceAndPath(CreateCrude.MODID, "lpg_block");
+            default -> null;
+        };
+    }
 
     private int[] computeDistribution(int availableLayers) {
         int[] counts = new int[PRODUCT_COUNT];
@@ -235,7 +248,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         return counts;
     }
 
-    // ---------- Crude Oil Reading from Base Tanks ----------
+    // ---------- Crude Oil Reading ----------
     public int getCrudeOilInBaseTanks() {
         if (level == null || baseTankPositions.isEmpty()) return 0;
         int totalCrude = 0;
@@ -272,7 +285,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         }
     }
 
-    // ---------- Distillation Logic ----------
+    // ---------- Systematic Distillation Logic ----------
     private boolean hasSpaceForOutputs() {
         int blockOffset = 0;
         for (int product = 0; product < PRODUCT_COUNT; product++) {
@@ -283,14 +296,22 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             int blocksForProduct = layers * footprintArea;
             int perBlockAmount = totalProductAmount / blocksForProduct;
 
-            FluidStack outputFluid = new FluidStack(getFluidForIndex(product), perBlockAmount);
             for (int i = 0; i < blocksForProduct; i++) {
                 BlockPos pos = productTankPositions.get(blockOffset + i);
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof SteelFluidTankBlockEntity tankBE) {
-                    // Check if the dedicated product layer block has room via its fluid handler capability!
-                    if (tankBE.getFluidHandler(null).fill(outputFluid, IFluidHandler.FluidAction.SIMULATE) < perBlockAmount) {
-                        return false;
+                    if (isGasProduct(product)) {
+                        // Check gas space in top layer via custom gas system
+                        ResourceLocation gasId = getGasIdForIndex(product);
+                        if (tankBE.fillGas(gasId, perBlockAmount, true) < perBlockAmount) {
+                            return false;
+                        }
+                    } else {
+                        // Check liquid space via standard fluid handler
+                        FluidStack outputFluid = new FluidStack(getFluidForIndex(product), perBlockAmount);
+                        if (tankBE.getFluidHandler(null).fill(outputFluid, IFluidHandler.FluidAction.SIMULATE) < perBlockAmount) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -309,12 +330,19 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             int blocksForProduct = layers * footprintArea;
             int perBlockAmount = totalProductAmount / blocksForProduct;
 
-            FluidStack fluid = new FluidStack(getFluidForIndex(product), perBlockAmount);
             for (int i = 0; i < blocksForProduct; i++) {
                 BlockPos pos = productTankPositions.get(blockOffset + i);
                 BlockEntity be = level.getBlockEntity(pos);
                 if (be instanceof SteelFluidTankBlockEntity tankBE) {
-                    tankBE.getFluidHandler(null).fill(fluid, IFluidHandler.FluidAction.EXECUTE);
+                    if (isGasProduct(product)) {
+                        // Fill gas into layer 6
+                        ResourceLocation gasId = getGasIdForIndex(product);
+                        tankBE.fillGas(gasId, perBlockAmount, false);
+                    } else {
+                        // Fill liquid into layers 1-5
+                        FluidStack fluid = new FluidStack(getFluidForIndex(product), perBlockAmount);
+                        tankBE.getFluidHandler(null).fill(fluid, IFluidHandler.FluidAction.EXECUTE);
+                    }
                 }
             }
             blockOffset += blocksForProduct;
@@ -322,26 +350,28 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         setChanged();
     }
 
+    // SYSTEMATIC YIELD Amounts (Sum = 1000mB per cycle)
     private int getProductAmount(int index) {
         return switch (index) {
-            case 0 -> 300; // Bitumen
-            case 1 -> 200; // Diesel
-            case 2 -> 250; // Kerosene
-            case 3 -> 150; // Gasoline
-            case 4 -> 100; // Naphtha
-            case 5 -> 50;  // LPG
+            case 0 -> 300; // Layer 1: Heavy Oil / Bitumen
+            case 1 -> 250; // Layer 2: Sulfur Diesel
+            case 2 -> 200; // Layer 3: Sulfur Kerosene
+            case 3 -> 120; // Layer 4: Sulfur Gasoline
+            case 4 -> 80;  // Layer 5: Sulfur Naphtha
+            case 5 -> 50;  // Layer 6: LPG
             default -> 0;
         };
     }
 
+    // SYSTEMATIC FLUID Mapping
     private Fluid getFluidForIndex(int index) {
         return switch (index) {
-            case 0 -> ModFluids.BITUMEN_SOURCE.get();
-            case 1 -> SulfurFluids.SULFUR_DIESEL_ENTRY.source.get();
-            case 2 -> SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get();
-            case 3 -> SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get();
-            case 4 -> SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();
-            case 5 -> ModFluids.DIESEL_SOURCE.get();
+            case 0 -> ModFluids.HEAVY_OIL_SOURCE.get();                     // Heavy Oil / Bitumen
+            case 1 -> SulfurFluids.SULFUR_DIESEL_ENTRY.source.get();      // Sulfur Diesel
+            case 2 -> SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get();    // Sulfur Kerosene
+            case 3 -> SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get();    // Sulfur Gasoline
+            case 4 -> SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();     // Sulfur Naphtha
+            case 5 -> Fluids.EMPTY;           // LPG (Updated!)
             default -> ModFluids.BITUMEN_SOURCE.get();
         };
     }
@@ -362,8 +392,15 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
                     BlockPos pos = productTankPositions.get(blockOffset + i);
                     BlockEntity be = level.getBlockEntity(pos);
                     if (be instanceof SteelFluidTankBlockEntity tankBE) {
-                        IFluidHandler handler = tankBE.getFluidHandler(null);
-                        total += handler.getFluidInTank(0).getAmount();
+                        // Check custom gas system if layer 5 (LPG), otherwise standard fluid handler
+                        if (isGasProduct(product)) {
+                            total += tankBE.getStoredGasAmount();
+                        } else {
+                            IFluidHandler handler = tankBE.getFluidHandler(null);
+                            if (handler != null) {
+                                total += handler.getFluidInTank(0).getAmount();
+                            }
+                        }
                     }
                 }
                 break;
@@ -409,7 +446,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             player.sendSystemMessage(Component.literal("§c❌ Structural Error: No Steel Fluid Tank adjacent to controller."));
             return;
         }
-        player.sendSystemMessage(Component.literal("§a✔ Found adjacent Steel Fluid Tank structure."));
 
         SteelFluidTankBlockEntity tankController = adjacentTank.getControllerBE();
         if (tankController == null) {
@@ -426,14 +462,12 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             player.sendSystemMessage(Component.literal("§c❌ Footprint shape invalid! Must be 1x1, 2x2, or 3x3."));
             return;
         }
-        player.sendSystemMessage(Component.literal("§a✔ Footprint dimensions valid."));
 
         player.sendSystemMessage(Component.literal("§eℹ Tower height = " + h + " blocks (min 7)."));
         if (h < 7) {
             player.sendSystemMessage(Component.literal("§c❌ Tower too short! Minimum height required is 7 (1 base + 6 products)."));
             return;
         }
-        player.sendSystemMessage(Component.literal("§a✔ Tower height valid."));
 
         boolean burnersValid = checkBurnersUnderBase(tankController);
         player.sendSystemMessage(Component.literal("§eℹ Heat Level: " + heatLevel));

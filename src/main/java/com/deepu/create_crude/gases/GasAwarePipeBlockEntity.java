@@ -166,6 +166,7 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         if (nextDir != null) {
             BlockPos nextPos = pos.relative(nextDir);
             if (level.getBlockEntity(nextPos) instanceof GasAwarePipeBlockEntity nextBe) {
+                if (nextBe.hasGas()) return;
                 Direction nextIncoming = nextDir.getOpposite();
                 nextBe.setGas(be.gasPayload, nextIncoming);
                 be.clearGas();

@@ -39,8 +39,16 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
         if (backBE instanceof GasAwarePipeBlockEntity backPipe) {
             payload = backPipe.getGasPayload();
         } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
-            if (backTank.getStoredGasAmount() >= 1000 && backTank.getStoredGasId() != null) {
-                payload = new GasPayload(backTank.getStoredGasId(), 5);
+            int storedGas = backTank.getStoredGasAmount();
+            if (storedGas > 0 && backTank.getStoredGasId() != null) {
+                // Extract up to 1000 mB, or whatever amount is currently available
+                int amountToDrain = Math.min(storedGas, 1000); 
+                
+                // Pass the actual amount being extracted into your payload if constructor permits
+                payload = new GasPayload(backTank.getStoredGasId(), 5); 
+                
+                // Drain only the amount being extracted
+                backTank.drainGas(amountToDrain, false); 
             }
         }
 

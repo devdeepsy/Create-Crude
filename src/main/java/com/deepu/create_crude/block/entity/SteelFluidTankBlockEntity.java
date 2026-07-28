@@ -471,7 +471,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                     case 2 -> { return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get(); }
                     case 3 -> { return fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get(); }
                     case 4 -> { return fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get(); }
-                    case 5 -> { return fluid == ModFluids.DIESEL_SOURCE.get(); }
+                    case 5 -> { return false; }
                 }
                 return true;
             }
