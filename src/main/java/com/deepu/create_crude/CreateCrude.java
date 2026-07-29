@@ -44,6 +44,7 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import com.deepu.create_crude.block.entity.DistillationControllerBlockEntity;
 import com.deepu.create_crude.block.entity.SeismicDetectorBlockEntity;
+import com.deepu.create_crude.block.entity.SolidOutputingBlockEntity;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
 import com.deepu.create_crude.client.renderer.SteelFluidTankRenderer;
@@ -126,7 +127,13 @@ public class CreateCrude {
         () -> new SteelFluidTankBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0F).sound(SoundType.NETHERITE_BLOCK).noOcclusion()));
     public static final DeferredHolder<Block, Block> ASPHALT_BLOCK = BLOCKS.register("asphalt",
         () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).mapColor(MapColor.METAL).strength(2.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion()));
-    
+    public static final DeferredBlock<SolidOutputingBlock> SOLID_OUTPUTING_BLOCK = BLOCKS.register("solid_outputing_block",
+            () -> new SolidOutputingBlock(BlockBehaviour.Properties.of().strength(3.0f).noOcclusion()));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SolidOutputingBlockEntity>> SOLID_OUTPUTING_BE = 
+            BLOCK_ENTITIES.register("solid_outputing_be",
+                () -> BlockEntityType.Builder.of(SolidOutputingBlockEntity::new, SOLID_OUTPUTING_BLOCK.get()).build(null));
+        
     public static final DeferredItem<Item> STEEL_PIPE_ITEM = ITEMS.register("steel_pipe", () -> new BlockItem(STEEL_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> HIGH_TENSILE_PIPE_ITEM = ITEMS.register("high_tensile_pipe", () -> new BlockItem(HIGH_TENSILE_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_PUMP_ITEM = ITEMS.register("steel_pump", () -> new BlockItem(STEEL_PUMP.get(), new Item.Properties()));
@@ -141,6 +148,7 @@ public class CreateCrude {
     public static final DeferredItem<Item> SULFUR_POWDER_ITEM = ITEMS.register("sulfur_powder",() -> new Item(new Item.Properties()));
     public static final DeferredHolder<Item, BlockItem> ASPHALT_ITEM = ITEMS.register("asphalt",() -> new BlockItem(ASPHALT_BLOCK.get(), new Item.Properties()));
     public static final DeferredItem<Item> DISTILLATION_CONTROLLER_ITEM = ITEMS.register("distillation_controller", () -> new BlockItem(DISTILLATION_CONTROLLER.get(), new Item.Properties()));
+    public static final DeferredItem<Item> SOLID_OUTPUTING_BLOCK_ITEM = ITEMS.register("solid_outputing_block",()-> new BlockItem(SOLID_OUTPUTING_BLOCK.get(),new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_ROD_IRON_ITEM = ITEMS.register("iron_rod",
         () -> new net.minecraft.world.item.BlockItem(PUMPJACK_ROD.get(), new Item.Properties()) {
             @Override
@@ -219,6 +227,7 @@ public class CreateCrude {
                 output.accept(SulfurFluids.SULFUR_NAPHTHA_BUCKET.get());
                 output.accept(ModFluids.GASOLINE_BUCKET.get());
                 output.accept(ModFluids.NAPHTHA_BUCKET.get());
+                output.accept(SOLID_OUTPUTING_BLOCK_ITEM.get());
                 GasRegistry.getAll().forEach(entry -> output.accept(entry.item.get()));
                 output.accept(DISTILLATION_CONTROLLER_ITEM.get());
             }).build());
