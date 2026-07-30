@@ -5,8 +5,6 @@ import com.deepu.create_crude.ModFluids;
 import com.deepu.create_crude.SulfurFluids;
 import com.deepu.create_crude.block.DistillationControllerBlock;
 import com.deepu.create_crude.client.gui.DistillationContainerMenu;
-import com.deepu.create_crude.gases.GasBlock;
-import com.deepu.create_crude.gases.GasRegistry;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -20,34 +18,33 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.SimpleContainerData;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraft.world.level.material.Fluids;
+import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.resources.ResourceLocation;
 
 public class DistillationControllerBlockEntity extends BlockEntity implements MenuProvider {
-    // Product order: 0=Heavy Oil/Bitumen, 1=Sulfur Diesel, 2=Sulfur Kerosene, 3=Sulfur Gasoline, 4=Sulfur Naphtha, 5=LPG
     private static final int PRODUCT_COUNT = 6;
 
     private int progress = 0;
-    private int maxProgress = 200; // Default 10s
+    private int maxProgress = 200;
 
-    // Structure data
     private boolean valid = false;
     private int towerHeight = 0;
-    private int footprintArea = 1; // 1 (1x1), 4 (2x2), or 9 (3x3)
+    private int footprintArea = 1;
     private int[] productDistribution = new int[PRODUCT_COUNT];
     private int heatLevel = 0;
     
-    // Base Layer separate from Output Layers
     private final List<BlockPos> baseTankPositions = new ArrayList<>();
     private final List<BlockPos> productTankPositions = new ArrayList<>();
 
@@ -69,8 +66,60 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
     public DistillationControllerBlockEntity(BlockPos pos, BlockState state) {
         super(CreateCrude.DISTILLATION_CONTROLLER_BE.get(), pos, state);
     }
+
     private boolean isGasProduct(int index) {
-        return index == 5; // Layer 6: LPG
+        return index == 5;
+    }
+
+    // ---------- Solid Output Helpers ----------
+    @Nullable
+    private BlockPos findSolidOutputBlock(BlockPos basePos, int width, int depth) {
+        if (level == null) return null;
+        for (int x = -1; x <= width; x++) {
+            for (int z = -1; z <= depth; z++) {
+                if (x >= 0 && x < width && z >= 0 && z < depth) continue;
+                BlockPos checkPos = basePos.offset(x, 0, z);
+                if (level.getBlockState(checkPos).is(CreateCrude.SOLID_OUTPUTING_BLOCK.get())) {
+                    return checkPos;
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean hasSolidOutputSpace() {
+        if (level == null || baseTankPositions.isEmpty()) return false;
+
+        BlockPos solidBlockPos = findSolidOutputBlock(baseTankPositions.get(0), (int) Math.sqrt(footprintArea), (int) Math.sqrt(footprintArea));
+        if (solidBlockPos == null) return false;
+
+        IItemHandler itemHandler = level.getCapability(Capabilities.ItemHandler.BLOCK, solidBlockPos, null);
+        if (itemHandler == null) return false;
+
+        ItemStack testStack = new ItemStack(CreateCrude.SULFUR_POWDER_ITEM.get(), 1 * footprintArea);
+        for (int i = 0; i < itemHandler.getSlots(); i++) {
+            ItemStack remainder = itemHandler.insertItem(i, testStack, true);
+            if (remainder.getCount() < testStack.getCount()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void outputSolidByproduct() {
+        if (level == null || currentMode != Mode.HEAVY_OIL || baseTankPositions.isEmpty()) return;
+
+        BlockPos solidBlockPos = findSolidOutputBlock(baseTankPositions.get(0), (int) Math.sqrt(footprintArea), (int) Math.sqrt(footprintArea));
+        if (solidBlockPos == null) return;
+
+        IItemHandler itemHandler = level.getCapability(Capabilities.ItemHandler.BLOCK, solidBlockPos, null);
+        if (itemHandler != null) {
+            ItemStack solidOutput = new ItemStack(CreateCrude.SULFUR_POWDER_ITEM.get(), 1 * footprintArea);
+            for (int i = 0; i < itemHandler.getSlots(); i++) {
+                solidOutput = itemHandler.insertItem(i, solidOutput, false);
+                if (solidOutput.isEmpty()) break;
+            }
+        }
     }
 
     // ---------- Server Tick ----------
@@ -101,13 +150,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             be.setActive(false);
         }
     }
-    public enum DistillationType {
-        CRUDE_OIL,
-        HEAVY_OIL,
-        NONE
-    }
-
-    private DistillationType distillationType = DistillationType.NONE;
 
     // ---------- Structure Validation ----------
     private void validateStructure() {
@@ -160,19 +202,22 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             return;
         }
 
-        // 1. Detect Base Fluid
         Fluid baseFluid = getBaseTankFluid(basePos);
         if (baseFluid == ModFluids.CRUDE_OIL_SOURCE.get()) {
             this.currentMode = Mode.CRUDE_OIL;
         } else if (baseFluid == ModFluids.HEAVY_OIL_SOURCE.get()) {
             this.currentMode = Mode.HEAVY_OIL;
+            if (findSolidOutputBlock(basePos, w, d) == null) {
+                valid = false;
+                currentMode = Mode.NONE;
+                return;
+            }
         } else {
             valid = false;
             currentMode = Mode.NONE;
             return;
         }
 
-        // 2. Check Height Requirement based on detected Mode
         if (h < currentMode.minHeight) {
             valid = false;
             return;
@@ -192,7 +237,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         baseTankPositions.clear();
         productTankPositions.clear();
 
-        // Set Base Layer (Layer 0)
         for (int x = 0; x < w; x++) {
             for (int z = 0; z < d; z++) {
                 BlockPos p = basePos.offset(x, 0, z);
@@ -203,7 +247,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             }
         }
 
-        // Set Output Layers
         int currentLayerY = 1;
         for (int product = 0; product < currentMode.productCount; product++) {
             int layerCount = productDistribution[product];
@@ -229,6 +272,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         }
         return Fluids.EMPTY;
     }
+
     public int getBaseFluidAmount() {
         if (level == null || baseTankPositions.isEmpty()) return 0;
         int total = 0;
@@ -244,6 +288,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         }
         return total;
     }
+
     private void drainBaseFluid(int amountToDrain) {
         if (level == null || baseTankPositions.isEmpty()) return;
         int remainingToDrain = amountToDrain;
@@ -300,6 +345,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         }
         return 0;
     }
+
     private ResourceLocation getGasIdForIndex(int index) {
         return switch (index) {
             case 5 -> ResourceLocation.fromNamespaceAndPath(CreateCrude.MODID, "lpg_block");
@@ -325,48 +371,16 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         return counts;
     }
 
-    // ---------- Crude Oil Reading ----------
-    public int getCrudeOilInBaseTanks() {
-        if (level == null || baseTankPositions.isEmpty()) return 0;
-        int totalCrude = 0;
-
-        for (BlockPos pos : baseTankPositions) {
-            if (level.getBlockEntity(pos) instanceof SteelFluidTankBlockEntity tankBE) {
-                FluidStack stack = tankBE.getTank().getFluid();
-                if (stack.getFluid() == ModFluids.CRUDE_OIL_SOURCE.get()) {
-                    totalCrude += stack.getAmount();
-                }
-            }
-        }
-        return totalCrude;
-    }
-
-    public int getCrudeOilCapacityInBaseTanks() {
-        if (!valid) return 0;
-        return baseTankPositions.size() * SteelFluidTankBlockEntity.CAPACITY;
-    }
-
-    private void drainCrudeOilFromBase(int amountToDrain) {
-        if (level == null || baseTankPositions.isEmpty()) return;
-        int remainingToDrain = amountToDrain;
-
-        for (BlockPos pos : baseTankPositions) {
-            if (level.getBlockEntity(pos) instanceof SteelFluidTankBlockEntity tankBE) {
-                FluidStack stack = tankBE.getTank().getFluid();
-                if (stack.getFluid() == ModFluids.CRUDE_OIL_SOURCE.get()) {
-                    FluidStack drained = tankBE.getTank().drain(new FluidStack(ModFluids.CRUDE_OIL_SOURCE.get(), remainingToDrain), IFluidHandler.FluidAction.EXECUTE);
-                    remainingToDrain -= drained.getAmount();
-                    if (remainingToDrain <= 0) break;
-                }
-            }
-        }
-    }
-
-    // ---------- Systematic Distillation Logic ----------
+    // ---------- Distillation Process ----------
     private boolean hasSpaceForOutputs() {
         if (currentMode == Mode.NONE) return false;
+
+        if (currentMode == Mode.HEAVY_OIL && !hasSolidOutputSpace()) {
+            return false;
+        }
+
         int blockOffset = 0;
-        
+
         for (int product = 0; product < currentMode.productCount; product++) {
             int layers = productDistribution[product];
             if (layers == 0) continue;
@@ -395,6 +409,11 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
 
     private void completeDistillation() {
         if (currentMode == Mode.NONE) return;
+
+        if (currentMode == Mode.HEAVY_OIL) {
+            outputSolidByproduct();
+        }
+
         int blockOffset = 0;
 
         for (int product = 0; product < currentMode.productCount; product++) {
@@ -423,30 +442,28 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         setChanged();
     }
 
-    // SYSTEMATIC YIELD Amounts (Sum = 1000mB per cycle)
     private int getProductAmount(int index) {
         if (currentMode == Mode.CRUDE_OIL) {
             return switch (index) {
-                case 0 -> 300; // Layer 1: Heavy Oil
-                case 1 -> 250; // Layer 2: Sulfur Diesel
-                case 2 -> 200; // Layer 3: Sulfur Kerosene
-                case 3 -> 120; // Layer 4: Sulfur Gasoline
-                case 4 -> 80;  // Layer 5: Sulfur Naphtha
-                case 5 -> 50;  // Layer 6: LPG
+                case 0 -> 300; // Heavy Oil
+                case 1 -> 250; // Sulfur Diesel
+                case 2 -> 200; // Sulfur Kerosene
+                case 3 -> 120; // Sulfur Gasoline
+                case 4 -> 80;  // Sulfur Naphtha
+                case 5 -> 50;  // LPG
                 default -> 0;
             };
         } else if (currentMode == Mode.HEAVY_OIL) {
             return switch (index) {
-                case 0 -> 500; // Layer 1: Bitumen
-                case 1 -> 300; // Layer 2: Lubricating Oil
-                case 2 -> 200; // Layer 3: Fuel Oil / Heavy Diesel
+                case 0 -> 400; // Bitumen
+                case 1 -> 350; // Sulfur Diesel
+                case 2 -> 250; // Lubricating Oil
                 default -> 0;
             };
         }
         return 0;
     }
 
-    // SYSTEMATIC FLUID Mapping
     private Fluid getFluidForIndex(int index) {
         if (currentMode == Mode.CRUDE_OIL) {
             return switch (index) {
@@ -455,21 +472,20 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
                 case 2 -> SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get();
                 case 3 -> SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get();
                 case 4 -> SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();
-                case 5 -> Fluids.EMPTY; // LPG Gas block
+                case 5 -> Fluids.EMPTY;
                 default -> Fluids.EMPTY;
             };
         } else if (currentMode == Mode.HEAVY_OIL) {
             return switch (index) {
                 case 0 -> ModFluids.BITUMEN_SOURCE.get();
-                case 1 -> ModFluids.LUBRICATING_OIL_SOURCE.get();
-                case 2 -> SulfurFluids.SULFUR_DIESEL_ENTRY.source.get();
+                case 1 -> SulfurFluids.SULFUR_DIESEL_ENTRY.source.get();
+                case 2 -> ModFluids.LUBRICATING_OIL_SOURCE.get();
                 default -> Fluids.EMPTY;
             };
         }
         return Fluids.EMPTY;
     }
 
-    // ---------- Public Accessors ----------
     public Fluid getProductFluid(int index) {
         return getFluidForIndex(index);
     }
@@ -485,7 +501,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
                     BlockPos pos = productTankPositions.get(blockOffset + i);
                     BlockEntity be = level.getBlockEntity(pos);
                     if (be instanceof SteelFluidTankBlockEntity tankBE) {
-                        // Check custom gas system if layer 5 (LPG), otherwise standard fluid handler
                         if (isGasProduct(product)) {
                             total += tankBE.getStoredGasAmount();
                         } else {
@@ -509,7 +524,16 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
     }
 
     public Fluid getInputFluid() {
-        return ModFluids.CRUDE_OIL_SOURCE.get();
+        return (currentMode == Mode.HEAVY_OIL) ? ModFluids.HEAVY_OIL_SOURCE.get() : ModFluids.CRUDE_OIL_SOURCE.get();
+    }
+
+    public int getCrudeOilInBaseTanks() {
+        return getBaseFluidAmount();
+    }
+
+    public int getCrudeOilCapacityInBaseTanks() {
+        if (!valid) return 0;
+        return baseTankPositions.size() * SteelFluidTankBlockEntity.CAPACITY;
     }
 
     private void setActive(boolean active) {
@@ -518,11 +542,9 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             level.setBlock(worldPosition, state.setValue(DistillationControllerBlock.ACTIVE, active), 3);
         }
     }
-    
 
     public int getHeatLevel() { return heatLevel; }
 
-    // ---------- Diagnostics ----------
     public void printDiagnostics(Player player) {
         if (level == null || level.isClientSide) return;
         player.sendSystemMessage(Component.literal("§6--- ⚙ Distillation Tower Diagnostics ⚙ ---"));
@@ -557,11 +579,7 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
             return;
         }
 
-        player.sendSystemMessage(Component.literal("§eℹ Tower height = " + h + " blocks (min 7)."));
-        if (h < 7) {
-            player.sendSystemMessage(Component.literal("§c❌ Tower too short! Minimum height required is 7 (1 base + 6 products)."));
-            return;
-        }
+        player.sendSystemMessage(Component.literal("§eℹ Tower height = " + h + " blocks."));
 
         boolean burnersValid = checkBurnersUnderBase(tankController);
         player.sendSystemMessage(Component.literal("§eℹ Heat Level: " + heatLevel));
@@ -571,27 +589,26 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         }
 
         int requiredInput = 1000 * footprintArea;
-        int crudeAmount = getCrudeOilInBaseTanks();
-        player.sendSystemMessage(Component.literal("§eℹ Crude Oil in base layer (Layer 0) = " + crudeAmount + "mB / " + requiredInput + "mB needed."));
+        int fluidAmount = getBaseFluidAmount();
+        player.sendSystemMessage(Component.literal("§eℹ Mode: " + currentMode + " | Input fluid in base layer = " + fluidAmount + "mB / " + requiredInput + "mB needed."));
 
-        if (crudeAmount < requiredInput) {
-            player.sendSystemMessage(Component.literal("§c⚠ Insufficient crude oil in bottom tanks."));
+        if (fluidAmount < requiredInput) {
+            player.sendSystemMessage(Component.literal("§c⚠ Insufficient input fluid in bottom tanks."));
         }
 
         if (hasSpaceForOutputs()) {
-            player.sendSystemMessage(Component.literal("§a✔ Output space available in Layers 1 to " + (h-1) + "."));
+            player.sendSystemMessage(Component.literal("§a✔ Output space available in upper layers and solid block."));
         } else {
-            player.sendSystemMessage(Component.literal("§c❌ Output space blocked or contaminated! Check pipes on upper layers."));
+            player.sendSystemMessage(Component.literal("§c❌ Output space blocked or contaminated! Check tanks or solid output block."));
         }
 
-        if (crudeAmount >= requiredInput && hasSpaceForOutputs()) {
+        if (fluidAmount >= requiredInput && hasSpaceForOutputs()) {
             player.sendSystemMessage(Component.literal("§a⚙ Status: Running (" + (maxProgress / 20.0) + "s cycle time)!"));
         } else {
             player.sendSystemMessage(Component.literal("§e⚙ Status: STANDBY (Waiting on fluids or output space)"));
         }
     }
 
-    // ---------- NBT ----------
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
@@ -614,7 +631,6 @@ public class DistillationControllerBlockEntity extends BlockEntity implements Me
         heatLevel = tag.getInt("heatLevel");
     }
 
-    // ---------- Menu / GUI Data ----------
     protected final SimpleContainerData dataAccess = new SimpleContainerData(4) {
         @Override
         public int get(int index) {

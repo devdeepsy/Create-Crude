@@ -1,5 +1,5 @@
 {
   "variants": {
-    "": { "model": "createcrude:block/solidoutputingblock" }
+    "": { "model": "createcrude:block/solid_outputing_block" }
   }
 }

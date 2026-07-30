@@ -295,6 +295,11 @@ public class CreateCrude {
             CreateCrude.STEEL_FLUID_TANK_BE.get(),        // Your BlockEntity Type registry object
             (blockEntity, side) -> blockEntity.getFluidHandler(side) // The provider function
         );
+        event.registerBlockEntity(
+        Capabilities.ItemHandler.BLOCK,
+        CreateCrude.SOLID_OUTPUTING_BE.get(),
+        (blockEntity, side) -> blockEntity.getInventory()
+    );
     }
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {

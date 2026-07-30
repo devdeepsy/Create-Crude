@@ -465,13 +465,27 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 if (stack.isEmpty()) return false;
                 Fluid fluid = stack.getFluid();
                 switch (productIndex) {
-                    case -1 -> { return fluid == ModFluids.CRUDE_OIL_SOURCE.get(); }
-                    case 0 -> { return fluid == ModFluids.BITUMEN_SOURCE.get(); }
-                    case 1 -> { return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get(); }
-                    case 2 -> { return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get(); }
-                    case 3 -> { return fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get(); }
-                    case 4 -> { return fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get(); }
-                    case 5 -> { return false; }
+                    case -1 -> { 
+                        return fluid == ModFluids.CRUDE_OIL_SOURCE.get() || fluid == ModFluids.HEAVY_OIL_SOURCE.get(); 
+                    }
+                    case 0 -> { 
+                        return fluid == ModFluids.HEAVY_OIL_SOURCE.get() || fluid == ModFluids.BITUMEN_SOURCE.get(); 
+                    }
+                    case 1 -> { 
+                        return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get(); 
+                    }
+                    case 2 -> { 
+                        return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get() || fluid == ModFluids.LUBRICATING_OIL_SOURCE.get(); 
+                    }
+                    case 3 -> { 
+                        return fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get(); 
+                    }
+                    case 4 -> { 
+                        return fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get(); 
+                    }
+                    case 5 -> { 
+                        return false; 
+                    }
                 }
                 return true;
             }
