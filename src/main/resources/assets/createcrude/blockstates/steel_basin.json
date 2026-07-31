@@ -1,0 +1,22 @@
+{
+  "variants": {
+    "facing=down": {
+      "model": "createcrude:block/steel_basin/steel_basin"
+    },
+    "facing=east": {
+      "model": "createcrude:block/steel_basin/steel_basin_directional",
+      "y": 270
+    },
+    "facing=north": {
+      "model": "createcrude:block/steel_basin/steel_basin_directional",
+      "y": 180
+    },
+    "facing=south": {
+      "model": "createcrude:block/steel_basin/steel_basin_directional"
+    },
+    "facing=west": {
+      "model": "createcrude:block/steel_basin/steel_basin_directional",
+      "y": 90
+    }
+  }
+}

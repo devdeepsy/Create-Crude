@@ -1,6 +1,7 @@
 package com.deepu.create_crude.gases;
 
 import com.deepu.create_crude.CreateCrude;
+import com.deepu.create_crude.block.entity.SteelBasinBlockEntity;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.gases.network.GasPayload;
 import com.simibubi.create.content.fluids.pipes.FluidPipeBlock;
@@ -146,7 +147,6 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
     public static void tick(Level level, BlockPos pos, BlockState state, GasAwarePipeBlockEntity be) {
         if (level.isClientSide || !be.hasGas()) return;
 
-        // 1. Check if sitting directly against an active SteelPump input face
         for (Direction dir : Direction.values()) {
             BooleanProperty prop = getPipeProperty(state.getBlock(), dir);
             if (prop != null && state.getValue(prop)) {
@@ -161,7 +161,6 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
             }
         }
 
-        // 2. Propagate to onward connected pipe
         Direction nextDir = be.findNextDirection(level, pos, state);
         if (nextDir != null) {
             BlockPos nextPos = pos.relative(nextDir);
@@ -179,62 +178,53 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
             }
         }
 
-        // 3. Terminal pipe reached -> Vent into Tank or World
         be.ventGasToWorld(level, pos, state);
     }
 
     private void ventGasToWorld(Level level, BlockPos pos, BlockState state) {
         if (gasPayload == null) return;
-        Block gasBlock = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(gasPayload.gasBlockId());
 
         Direction primaryDir = incomingDirection != null ? incomingDirection.getOpposite() : Direction.UP;
         BlockPos primaryPos = pos.relative(primaryDir);
 
-        // Check if primary exit face is a SteelFluidTankBlockEntity
-        if (level.getBlockEntity(primaryPos) instanceof SteelFluidTankBlockEntity tankBE) {
-            int filled = tankBE.fillGas(gasPayload.gasBlockId(), 1000, false);
-            if (filled > 0) {
+        if (tryInsertGasIntoBE(level, primaryPos, gasPayload)) {
+            clearGas();
+            return;
+        }
+
+        for (Direction dir : Direction.values()) {
+            if (incomingDirection != null && dir == incomingDirection) continue;
+            BlockPos fallbackPos = pos.relative(dir);
+            if (tryInsertGasIntoBE(level, fallbackPos, gasPayload)) {
                 clearGas();
                 return;
             }
         }
 
-        if (level.getBlockState(primaryPos).canBeReplaced() && !(level.getBlockEntity(primaryPos) instanceof GasAwarePipeBlockEntity)) {
+        if (level.getBlockEntity(primaryPos) == null && level.getBlockState(primaryPos).canBeReplaced()) {
+            Block gasBlock = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(gasPayload.gasBlockId());
             if (gasBlock instanceof GasBlock) {
                 level.setBlock(primaryPos, gasBlock.defaultBlockState()
                         .setValue(GasBlock.RADIUS, Math.min(gasPayload.radius(), GasBlock.MAX_RADIUS))
                         .setValue(GasBlock.SOURCE, false), 3);
             }
-            clearGas();
-            return;
-        }
-
-        // Fallback Scanner: Look in all alternative directions
-        for (Direction dir : Direction.values()) {
-            if (incomingDirection != null && dir == incomingDirection) continue;
-
-            BlockPos fallbackPos = pos.relative(dir);
-
-            if (level.getBlockEntity(fallbackPos) instanceof SteelFluidTankBlockEntity tankBE) {
-                int filled = tankBE.fillGas(gasPayload.gasBlockId(), 1000, false);
-                if (filled > 0) {
-                    clearGas();
-                    return;
-                }
-            }
-
-            if (level.getBlockState(fallbackPos).canBeReplaced() && !(level.getBlockEntity(fallbackPos) instanceof GasAwarePipeBlockEntity)) {
-                if (gasBlock instanceof GasBlock) {
-                    level.setBlock(fallbackPos, gasBlock.defaultBlockState()
-                            .setValue(GasBlock.RADIUS, Math.min(gasPayload.radius(), GasBlock.MAX_RADIUS))
-                            .setValue(GasBlock.SOURCE, false), 3);
-                }
-                clearGas();
-                return;
-            }
         }
 
         clearGas();
+    }
+
+    private boolean tryInsertGasIntoBE(Level level, BlockPos targetPos, GasPayload payload) {
+        BlockEntity be = level.getBlockEntity(targetPos);
+        if (be instanceof SteelFluidTankBlockEntity tankBE) {
+            int filled = tankBE.fillGas(payload.gasBlockId(), 1000, false);
+            return filled > 0;
+        } else if (be instanceof SteelBasinBlockEntity basinBE) {
+            if (basinBE.canAcceptGas(payload.gasBlockId(), 1000)) {
+                basinBE.fillGas(payload.gasBlockId(), 1000);
+                return true;
+            }
+        }
+        return false;
     }
 
     @Nullable

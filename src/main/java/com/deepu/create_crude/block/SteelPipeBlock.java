@@ -1,6 +1,7 @@
 package com.deepu.create_crude.block;
 
 import com.deepu.create_crude.CreateCrude;
+import com.deepu.create_crude.block.entity.SteelBasinBlockEntity;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
 import com.deepu.create_crude.gases.network.GasPayload;
@@ -83,6 +84,18 @@ public class SteelPipeBlock extends FluidPipeBlock {
                     if (tankBE.getStoredGasAmount() >= 1000 && tankBE.getStoredGasId() != null) {
                         ResourceLocation gasId = tankBE.getStoredGasId();
                         tankBE.drainGas(1000, false);
+                        pipeBE.setGas(new GasPayload(gasId, 5), dir);
+
+                        int delay = pipeBE.getTickDelay();
+                        if (!level.getBlockTicks().hasScheduledTick(pos, this)) {
+                            level.scheduleTick(pos, this, delay);
+                        }
+                    }
+                }
+                else if (level.getBlockEntity(neighborPos) instanceof SteelBasinBlockEntity basinBE) {
+                    if (basinBE.getStoredGasAmount() >= 1000 && basinBE.getStoredGasId() != null) {
+                        ResourceLocation gasId = basinBE.getStoredGasId();
+                        basinBE.drainGas(1000, false);
                         pipeBE.setGas(new GasPayload(gasId, 5), dir);
 
                         int delay = pipeBE.getTickDelay();

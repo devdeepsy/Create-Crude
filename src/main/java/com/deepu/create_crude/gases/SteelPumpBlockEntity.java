@@ -1,6 +1,7 @@
 package com.deepu.create_crude.gases;
 
 import com.deepu.create_crude.CreateCrude;
+import com.deepu.create_crude.block.entity.SteelBasinBlockEntity;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.gases.network.GasPayload;
 import com.simibubi.create.content.fluids.pump.PumpBlock;
@@ -35,20 +36,16 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
 
         GasPayload payload = null;
 
-        // 1. Extract Gas Payload from intake side (Pipe or Fluid Tank)
+        // 1. Extract Gas Payload from intake side (Pipe, Tank, or Basin)
         if (backBE instanceof GasAwarePipeBlockEntity backPipe) {
             payload = backPipe.getGasPayload();
         } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
-            int storedGas = backTank.getStoredGasAmount();
-            if (storedGas > 0 && backTank.getStoredGasId() != null) {
-                // Extract up to 1000 mB, or whatever amount is currently available
-                int amountToDrain = Math.min(storedGas, 1000); 
-                
-                // Pass the actual amount being extracted into your payload if constructor permits
-                payload = new GasPayload(backTank.getStoredGasId(), 5); 
-                
-                // Drain only the amount being extracted
-                backTank.drainGas(amountToDrain, false); 
+            if (backTank.getStoredGasAmount() > 0 && backTank.getStoredGasId() != null) {
+                payload = new GasPayload(backTank.getStoredGasId(), 5);
+            }
+        } else if (backBE instanceof SteelBasinBlockEntity backBasin) {
+            if (backBasin.getStoredGasAmount() > 0 && backBasin.getStoredGasId() != null) {
+                payload = new GasPayload(backBasin.getStoredGasId(), 5);
             }
         }
 
@@ -68,12 +65,16 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
                 level.scheduleTick(frontPos, frontPipe.getBlockState().getBlock(), delay);
             }
         } else if (frontBE instanceof SteelFluidTankBlockEntity frontTank) {
-            // Flow directly into tank!
             int filled = frontTank.fillGas(payload.gasBlockId(), 1000, false);
             if (filled > 0) {
                 clearGasFromSource(backBE);
             }
-        } else if (level.getBlockState(frontPos).canBeReplaced()) {
+        } else if (frontBE instanceof SteelBasinBlockEntity frontBasin) {
+            if (frontBasin.canAcceptGas(payload.gasBlockId(), 1000)) {
+                frontBasin.fillGas(payload.gasBlockId(), 1000);
+                clearGasFromSource(backBE);
+            }
+        } else if (frontBE == null && level.getBlockState(frontPos).canBeReplaced()) {
             Block gasBlock = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(payload.gasBlockId());
             if (gasBlock instanceof GasBlock) {
                 level.setBlock(frontPos, gasBlock.defaultBlockState()
@@ -89,6 +90,8 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
             backPipe.clearGas();
         } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
             backTank.drainGas(1000, false);
+        } else if (backBE instanceof SteelBasinBlockEntity backBasin) {
+            backBasin.drainGas(1000, false);
         }
     }
 }
