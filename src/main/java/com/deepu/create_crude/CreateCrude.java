@@ -49,6 +49,7 @@ import com.deepu.create_crude.block.entity.SolidOutputingBlockEntity;
 import com.deepu.create_crude.block.entity.SteelBasinBlockEntity;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
 import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
+import com.deepu.create_crude.client.renderer.SteelBasinRenderer;
 import com.deepu.create_crude.client.renderer.SteelFluidTankRenderer;
 import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
 import com.deepu.create_crude.gases.GasBlock;
@@ -130,7 +131,6 @@ public class CreateCrude {
         () -> new Block(BlockBehaviour.Properties.ofFullCopy(Blocks.STONE).mapColor(MapColor.METAL).strength(2.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion()));
     public static final DeferredBlock<SolidOutputingBlock> SOLID_OUTPUTING_BLOCK = BLOCKS.register("solid_outputing_block",
             () -> new SolidOutputingBlock(BlockBehaviour.Properties.of().strength(3.0f).noOcclusion()));
-    
     public static final DeferredBlock<SteelBasinBlock> STEEL_BASIN = BLOCKS.register("steel_basin",
         () -> new SteelBasinBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SolidOutputingBlockEntity>> SOLID_OUTPUTING_BE = 

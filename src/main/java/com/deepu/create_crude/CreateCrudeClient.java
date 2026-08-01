@@ -54,6 +54,10 @@ public class CreateCrudeClient {
             CreateCrude.STEEL_FLUID_TANK.get(),
             RenderType.cutout()
         );
+        ItemBlockRenderTypes.setRenderLayer(
+            CreateCrude.STEEL_BASIN.get(),
+            RenderType.cutout()
+        );
     });
     }
     @SubscribeEvent
@@ -86,4 +90,4 @@ public class CreateCrudeClient {
         
     //     }
     
-} 
+}
