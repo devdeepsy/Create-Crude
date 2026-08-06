@@ -3,12 +3,10 @@ package com.deepu.create_crude.block;
 import com.deepu.create_crude.CreateCrude;
 import com.deepu.create_crude.block.entity.SteelBasinBlockEntity;
 import com.deepu.create_crude.gases.GasBlock;
-import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
-import com.deepu.create_crude.gases.network.GasPayload;
 import com.simibubi.create.content.processing.basin.BasinBlock;
 import com.simibubi.create.content.processing.basin.BasinBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -22,10 +20,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class SteelBasinBlock extends BasinBlock {
 
-    // Full 16x16x16 cube minus the open interior cavity (the recess above the base,
-    // from x/z 2..14 and y 2..16). This matches the actual concave model geometry,
-    // so ambient occlusion / smooth lighting stops treating the interior walls as
-    // "inside solid matter" (which was rendering them pure black).
     private static final VoxelShape BASIN_SHAPE = Shapes.join(
         Shapes.block(),
         Shapes.box(2 / 16D, 2 / 16D, 2 / 16D, 14 / 16D, 16 / 16D, 14 / 16D),
@@ -57,15 +51,17 @@ public class SteelBasinBlock extends BasinBlock {
         if (level.isClientSide) return;
 
         if (level.getBlockEntity(pos) instanceof SteelBasinBlockEntity basinBE) {
-            // Pull gas directly if an active GasBlock is placed directly adjacent
             BlockState neighborState = level.getBlockState(neighborPos);
-            if (neighborState.getBlock() instanceof GasBlock gasBlock) {
-                ResourceLocation gasId = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(gasBlock);
-                if (gasId.toString().equals("createcrude:hydrogen_block")) {
-                    if (basinBE.canAcceptGas(1000)) {
-                        level.removeBlock(neighborPos, false);
-                        basinBE.fillGas(gasId, 1000);
-                    }
+
+            // Pull gas dynamically if any valid GasBlock is placed directly adjacent
+            if (neighborState.getBlock() instanceof GasBlock) {
+                ResourceLocation gasId = BuiltInRegistries.BLOCK.getKey(neighborState.getBlock());
+                int intakeAmount = 1000;
+
+                // Validates gas type matching and remaining capacity
+                if (basinBE.canAcceptGas(gasId, intakeAmount)) {
+                    level.removeBlock(neighborPos, false);
+                    basinBE.fillGas(gasId, intakeAmount);
                 }
             }
         }

@@ -1,0 +1,13 @@
+{
+  "type": "createcrude:steel_basin",
+  "input_fluid": {
+    "id": "createcrude:sulfur_diesel",
+    "amount": 1000
+  },
+  "gas": "createcrude:hydrogen_block",
+  "output_fluid": {
+    "id": "createcrude:hydrotreated_diesel",
+    "amount": 1000
+  },
+  "processing_time": 40
+}

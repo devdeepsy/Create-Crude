@@ -8,6 +8,7 @@ import com.simibubi.create.content.fluids.pump.PumpBlock;
 import com.simibubi.create.content.fluids.pump.PumpBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -17,13 +18,13 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
     public SteelPumpBlockEntity(BlockPos pos, BlockState state) {
         super(CreateCrude.STEEL_PUMP_BE.get(), pos, state);
     }
+    private static final int TRANSFER_RATE = 20;
 
     @Override
     public void tick() {
         super.tick();
 
-        if (getSpeed() == 0) return;
-        if (level == null || level.isClientSide) return;
+        if (getSpeed() == 0 || level == null || level.isClientSide) return;
 
         Direction facing = getBlockState().getValue(PumpBlock.FACING);
         Direction back = facing.getOpposite();
@@ -34,64 +35,50 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
         BlockEntity backBE = level.getBlockEntity(backPos);
         BlockEntity frontBE = level.getBlockEntity(frontPos);
 
-        GasPayload payload = null;
+        if (backBE == null || frontBE == null) return;
 
-        // 1. Extract Gas Payload from intake side (Pipe, Tank, or Basin)
-        if (backBE instanceof GasAwarePipeBlockEntity backPipe) {
-            payload = backPipe.getGasPayload();
-        } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
-            if (backTank.getStoredGasAmount() > 0 && backTank.getStoredGasId() != null) {
-                payload = new GasPayload(backTank.getStoredGasId(), 5);
-            }
-        } else if (backBE instanceof SteelBasinBlockEntity backBasin) {
-            if (backBasin.getStoredGasAmount() > 0 && backBasin.getStoredGasId() != null) {
-                payload = new GasPayload(backBasin.getStoredGasId(), 5);
-            }
-        }
+        // Handle Basin-to-Basin / Basin-to-Tank Gas Transfer with strict conservation
+        ResourceLocation sourceGasId = getSourceGasId(backBE);
+        int sourceAmount = getSourceGasAmount(backBE);
 
-        if (payload == null) return;
+        if (sourceGasId != null && sourceAmount > 0) {
+            int toTransfer = Math.min(sourceAmount, TRANSFER_RATE);
 
-        int speed = Math.abs((int) getSpeed());
-        int delay = speed > 0 ? Math.max(1, Math.min(20, 256 / speed)) : 5;
-
-        // 2. Push Gas Payload to output side
-        if (frontBE instanceof GasAwarePipeBlockEntity frontPipe) {
-            if (frontPipe.hasGas()) return;
-
-            frontPipe.setGas(payload, facing.getOpposite());
-            clearGasFromSource(backBE);
-
-            if (!level.getBlockTicks().hasScheduledTick(frontPos, frontPipe.getBlockState().getBlock())) {
-                level.scheduleTick(frontPos, frontPipe.getBlockState().getBlock(), delay);
+            if (canTargetAcceptGas(frontBE, sourceGasId, toTransfer)) {
+                int actualDrained = drainGasFromSource(backBE, toTransfer);
+                if (actualDrained > 0) {
+                    fillGasToTarget(frontBE, sourceGasId, actualDrained);
+                }
             }
-        } else if (frontBE instanceof SteelFluidTankBlockEntity frontTank) {
-            int filled = frontTank.fillGas(payload.gasBlockId(), 1000, false);
-            if (filled > 0) {
-                clearGasFromSource(backBE);
-            }
-        } else if (frontBE instanceof SteelBasinBlockEntity frontBasin) {
-            if (frontBasin.canAcceptGas(payload.gasBlockId(), 1000)) {
-                frontBasin.fillGas(payload.gasBlockId(), 1000);
-                clearGasFromSource(backBE);
-            }
-        } else if (frontBE == null && level.getBlockState(frontPos).canBeReplaced()) {
-            Block gasBlock = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(payload.gasBlockId());
-            if (gasBlock instanceof GasBlock) {
-                level.setBlock(frontPos, gasBlock.defaultBlockState()
-                        .setValue(GasBlock.RADIUS, Math.min(payload.radius(), GasBlock.MAX_RADIUS))
-                        .setValue(GasBlock.SOURCE, false), 3);
-            }
-            clearGasFromSource(backBE);
         }
     }
 
-    private void clearGasFromSource(BlockEntity backBE) {
-        if (backBE instanceof GasAwarePipeBlockEntity backPipe) {
-            backPipe.clearGas();
-        } else if (backBE instanceof SteelFluidTankBlockEntity backTank) {
-            backTank.drainGas(1000, false);
-        } else if (backBE instanceof SteelBasinBlockEntity backBasin) {
-            backBasin.drainGas(1000, false);
-        }
+        private ResourceLocation getSourceGasId(BlockEntity be) {
+        if (be instanceof SteelFluidTankBlockEntity tank) return tank.getStoredGasId();
+        if (be instanceof SteelBasinBlockEntity basin) return basin.getStoredGasId();
+        return null;
+    }
+
+    private int getSourceGasAmount(BlockEntity be) {
+        if (be instanceof SteelFluidTankBlockEntity tank) return tank.getStoredGasAmount();
+        if (be instanceof SteelBasinBlockEntity basin) return basin.getStoredGasAmount();
+        return 0;
+    }
+
+    private boolean canTargetAcceptGas(BlockEntity be, ResourceLocation gasId, int amount) {
+        if (be instanceof SteelFluidTankBlockEntity tank) return tank.fillGas(gasId, amount, true) > 0;
+        if (be instanceof SteelBasinBlockEntity basin) return basin.canAcceptGas(gasId, amount);
+        return false;
+    }
+
+    private int drainGasFromSource(BlockEntity be, int amount) {
+        if (be instanceof SteelFluidTankBlockEntity tank) return tank.drainGas(amount, false);
+        if (be instanceof SteelBasinBlockEntity basin) return basin.drainGas(amount, false);
+        return 0;
+    }
+
+    private void fillGasToTarget(BlockEntity be, ResourceLocation gasId, int amount) {
+        if (be instanceof SteelFluidTankBlockEntity tank) tank.fillGas(gasId, amount, false);
+        if (be instanceof SteelBasinBlockEntity basin) basin.fillGas(gasId, amount);
     }
 }

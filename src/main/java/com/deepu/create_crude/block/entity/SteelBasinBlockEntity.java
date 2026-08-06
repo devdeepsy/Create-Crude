@@ -1,5 +1,7 @@
 package com.deepu.create_crude.block.entity;
 
+import com.deepu.create_crude.SulfurFluids;
+import com.deepu.create_crude.gases.GasBlock;
 import com.deepu.create_crude.gases.GasRegistry;
 import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
 import com.simibubi.create.content.processing.basin.BasinBlockEntity;
@@ -11,6 +13,7 @@ import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
@@ -20,12 +23,14 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
 import org.jetbrains.annotations.Nullable;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
-import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import com.simibubi.create.content.processing.burner.BlazeBurnerBlock;
+import com.simibubi.create.content.processing.burner.BlazeBurnerBlock.HeatLevel;
+import net.minecraft.world.level.block.state.BlockState;
+
 import java.util.List;
 
 public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGoggleInformation {
@@ -34,11 +39,15 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     private int storedGasAmount = 0;
     private static final int MAX_GAS_CAPACITY = 10000;
 
-    private final GasTankHandler gasTankHandler = new GasTankHandler();
-
     private int processingTicks = 0;
     private static final int REQUIRED_TICKS = 40;
     private boolean isProcessing = false;
+
+    // Animation variables
+    public float mixerRotation = 0f;
+    public float prevMixerRotation = 0f;
+
+    private final GasTankHandler gasTankHandler = new GasTankHandler();
 
     public SteelBasinBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
@@ -50,50 +59,102 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
 
         if (level != null) {
             if (level.isClientSide) {
+                // Smooth frame-by-frame rotation tracking for renderer
+                this.prevMixerRotation = this.mixerRotation;
+                if (this.isProcessing) {
+                    this.mixerRotation = (this.mixerRotation + 12.0f) % 360.0f;
+                }
                 spawnGasParticles();
             } else {
+                siphonOverheadGasBlock();
                 processHydrotreating();
             }
         }
     }
 
+    /**
+     * Pulls gas from a GasBlock placed in world space directly above the basin into storedGasAmount.
+     */
+    private void siphonOverheadGasBlock() {
+        if (level == null || storedGasAmount >= MAX_GAS_CAPACITY) return;
+
+        BlockPos abovePos = worldPosition.above();
+        BlockState aboveState = level.getBlockState(abovePos);
+
+        if (aboveState.getBlock() instanceof GasBlock) {
+            ResourceLocation gasId = BuiltInRegistries.BLOCK.getKey(aboveState.getBlock());
+
+            // 250 mB intake per siphon tick batch
+            int intakeAmount = 250; 
+            if (canAcceptGas(gasId, intakeAmount)) {
+                fillGas(gasId, intakeAmount);
+
+                // Reduce gas block pressure or clear it
+                if (aboveState.hasProperty(GasBlock.PRESSURE) && aboveState.getValue(GasBlock.PRESSURE) > 0) {
+                    int currentPressure = aboveState.getValue(GasBlock.PRESSURE);
+                    level.setBlock(abovePos, aboveState.setValue(GasBlock.PRESSURE, currentPressure - 1), 3);
+                } else {
+                    level.removeBlock(abovePos, false);
+                }
+            }
+        }
+    }
+
     private void processHydrotreating() {
-        if (inputTank == null || outputTank == null) return;
+        if (inputTank == null || outputTank == null || level == null) return;
 
-        IFluidHandler inputHandler = inputTank.getCapability();
-        IFluidHandler outputHandler = outputTank.getCapability();
+        // Verify Blaze Burner below is present and superheated (SEETHING)
+        BlockState stateBelow = level.getBlockState(worldPosition.below());
+        boolean isSuperheated = stateBelow.hasProperty(BlazeBurnerBlock.HEAT_LEVEL) &&
+                stateBelow.getValue(BlazeBurnerBlock.HEAT_LEVEL) == HeatLevel.SEETHING;
 
-        FluidStack inputFluid = inputHandler.getFluidInTank(0);
+        if (!isSuperheated) {
+            if (isProcessing) {
+                isProcessing = false;
+                processingTicks = 0;
+                notifyUpdate();
+            }
+            return;
+        }
 
-        boolean hasSulfurDiesel = !inputFluid.isEmpty() && 
-                BuiltInRegistries.FLUID.getKey(inputFluid.getFluid()).getPath().contains("sulfur_diesel");
+        IFluidHandler inputHandler = inputTank.getPrimaryHandler();
+        IFluidHandler outputHandler = outputTank.getPrimaryHandler();
+
+        FluidStack sulfurDieselStack = FluidStack.EMPTY;
+        for (int i = 0; i < inputHandler.getTanks(); i++) {
+            FluidStack stack = inputHandler.getFluidInTank(i);
+            if (!stack.isEmpty() && BuiltInRegistries.FLUID.getKey(stack.getFluid()).getPath().contains("sulfur_diesel")) {
+                sulfurDieselStack = stack;
+                break;
+            }
+        }
+
+        boolean hasSulfurDiesel = !sulfurDieselStack.isEmpty() && sulfurDieselStack.getAmount() >= 2;
         boolean hasHydrogen = storedGasId != null && 
                 storedGasId.getPath().contains("hydrogen") && storedGasAmount >= 2;
 
         if (hasSulfurDiesel && hasHydrogen) {
-            Fluid hydrotreatedFluid = BuiltInRegistries.FLUID.stream()
-                    .filter(f -> BuiltInRegistries.FLUID.getKey(f).getPath().contains("hydrotreated_diesel"))
-                    .findFirst()
-                    .orElse(null);
-
-            if (hydrotreatedFluid == null) return;
-
+            Fluid hydrotreatedFluid = SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get();
             FluidStack outputStack = new FluidStack(hydrotreatedFluid, 2);
+
             int accepted = outputHandler.fill(outputStack, IFluidHandler.FluidAction.SIMULATE);
 
             if (accepted >= 2) {
-                isProcessing = true;
+                if (!isProcessing) {
+                    isProcessing = true;
+                    notifyUpdate();
+                }
+
                 processingTicks++;
 
                 if (processingTicks >= REQUIRED_TICKS) {
                     processingTicks = 0;
 
-                    inputHandler.drain(2, IFluidHandler.FluidAction.EXECUTE);
+                    inputHandler.drain(new FluidStack(sulfurDieselStack.getFluid(), 2), IFluidHandler.FluidAction.EXECUTE);
                     drainGas(2, false);
 
                     outputHandler.fill(outputStack, IFluidHandler.FluidAction.EXECUTE);
                 }
-                notifyUpdate();
                 return;
             }
         }
@@ -280,14 +341,32 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         compound.putInt("ProcessingTicks", processingTicks);
     }
 
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registers) {
+        CompoundTag tag = super.getUpdateTag(registers);
+        write(tag, registers, true);
+        return tag;
+    }
+
+    @Override
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection net, ClientboundBlockEntityDataPacket pkt, HolderLookup.Provider lookupProvider) {
+        CompoundTag tag = pkt.getTag();
+        if (tag != null) {
+            read(tag, lookupProvider, true);
+        }
+    }
+
     private class GasTankHandler implements IFluidHandler {
         @Override
         public int getTanks() { return 1; }
 
         @Override
-        public FluidStack getFluidInTank(int tank) {
-            return FluidStack.EMPTY;
-        }
+        public FluidStack getFluidInTank(int tank) { return FluidStack.EMPTY; }
 
         @Override
         public int getTankCapacity(int tank) { return MAX_GAS_CAPACITY; }
@@ -315,6 +394,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
                         int accepted = Math.min(resource.getAmount(), MAX_GAS_CAPACITY - storedGasAmount);
                         if (action.execute() && accepted > 0) {
                             fillGas(gasId, accepted);
+                            notifyUpdate();
                         }
                         return accepted;
                     }

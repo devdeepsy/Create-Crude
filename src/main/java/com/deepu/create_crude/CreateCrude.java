@@ -266,6 +266,7 @@ public class CreateCrude {
         event.registerBlockEntityRenderer(SEISMIC_DETECTOR_BE.get(), SeismicDetectorRenderer::new);
         event.registerBlockEntityRenderer(PUMPJACK_BE.get(), PumpjackRenderer::new);
         event.registerBlockEntityRenderer(STEEL_FLUID_TANK_BE.get(), SteelFluidTankRenderer::new);
+        event.registerBlockEntityRenderer(STEEL_BASIN_BE.get(), SteelBasinRenderer::new);
     }
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
