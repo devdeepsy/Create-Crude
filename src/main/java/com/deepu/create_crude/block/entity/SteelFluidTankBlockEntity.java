@@ -33,10 +33,15 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
     public static final int CAPACITY = 16000;
 
     private final FluidTank tank = new FluidTank(CAPACITY) {
-        @Override
-        protected void onContentsChanged() {
+    @Override
+    protected void onContentsChanged() {
             setChanged();
             if (level != null && !level.isClientSide) {
+                // If standard fluid is stored, ensure gas payload is zeroed out to prevent visual ghosting
+                if (!isEmpty()) {
+                    storedGasAmount = 0;
+                    storedGasId = null;
+                }
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
                 SteelFluidTankBlockEntity controller = getControllerBE();
                 if (controller != null && controller.isController()) {
@@ -466,13 +471,17 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 Fluid fluid = stack.getFluid();
                 switch (productIndex) {
                     case -1 -> { 
-                        return fluid == ModFluids.CRUDE_OIL_SOURCE.get() || fluid == ModFluids.HEAVY_OIL_SOURCE.get(); 
+                        // Default placed tanks accept all valid fluids
+                        return true; 
                     }
                     case 0 -> { 
                         return fluid == ModFluids.HEAVY_OIL_SOURCE.get() || fluid == ModFluids.BITUMEN_SOURCE.get(); 
                     }
                     case 1 -> { 
-                        return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get(); 
+                        // Allow both sulfur diesel and processed diesel
+                        return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get() 
+                            || fluid == SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get()
+                            || fluid == ModFluids.DIESEL_SOURCE.get(); 
                     }
                     case 2 -> { 
                         return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get() || fluid == ModFluids.LUBRICATING_OIL_SOURCE.get(); 
@@ -492,7 +501,8 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
 
             @Override
             public int fill(FluidStack resource, FluidAction action) {
-                if (resource.isEmpty()) return 0;
+                if (resource.isEmpty() || !isFluidValid(0, resource)) return 0; // Check fluid validity first!
+                
                 int remaining = resource.getAmount();
                 int filledTotal = 0;
 
@@ -563,6 +573,9 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         SteelFluidTankBlockEntity controllerBE = getControllerBE();
         if (controllerBE == null || !isController() || level == null) return;
 
+        // FIX: If the controller has standard fluid, do NOT render gas particles
+        if (!controllerBE.getTank().isEmpty()) return;
+
         ResourceLocation gasId = controllerBE.getStoredGasId();
         int gasAmount = controllerBE.getStoredGasAmount();
 
@@ -576,7 +589,6 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
 
         BlockPos controllerPos = controllerBE.getBlockPos();
 
-        // Render dense particles safely inside the inner glass bounds of the multiblock structure
         for (SteelFluidTankBlockEntity tankBE : getAllTanks()) {
             int particleCount = (int) (1 + fillRatio * 4);
             BlockPos bPos = tankBE.getBlockPos();
@@ -590,12 +602,10 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
 
             for (int i = 0; i < particleCount; i++) {
                 if (level.random.nextFloat() < 0.6f * fillRatio) {
-                    // Safe inset (0.18 -> 0.82) keeps particles well inside the glass frame
                     double x = bPos.getX() + 0.18 + level.random.nextDouble() * 0.64;
                     double y = minY + level.random.nextDouble() * Math.max(0.05, currentGasMaxY - minY);
                     double z = bPos.getZ() + 0.18 + level.random.nextDouble() * 0.64;
 
-                    // Near-zero velocity stops particles from drifting through walls
                     double vx = (level.random.nextDouble() - 0.5) * 0.002;
                     double vy = (level.random.nextDouble() - 0.5) * 0.002;
                     double vz = (level.random.nextDouble() - 0.5) * 0.002;

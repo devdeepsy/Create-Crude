@@ -3,13 +3,11 @@ package com.deepu.create_crude.gases;
 import com.deepu.create_crude.CreateCrude;
 import com.deepu.create_crude.block.entity.SteelBasinBlockEntity;
 import com.deepu.create_crude.block.entity.SteelFluidTankBlockEntity;
-import com.deepu.create_crude.gases.network.GasPayload;
 import com.simibubi.create.content.fluids.pump.PumpBlock;
 import com.simibubi.create.content.fluids.pump.PumpBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -18,10 +16,12 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
     public SteelPumpBlockEntity(BlockPos pos, BlockState state) {
         super(CreateCrude.STEEL_PUMP_BE.get(), pos, state);
     }
+    
     private static final int TRANSFER_RATE = 20;
 
     @Override
     public void tick() {
+        // ALWAYS let Create execute its standard liquid/pipe ticking logic first
         super.tick();
 
         if (getSpeed() == 0 || level == null || level.isClientSide) return;
@@ -35,25 +35,25 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
         BlockEntity backBE = level.getBlockEntity(backPos);
         BlockEntity frontBE = level.getBlockEntity(frontPos);
 
-        if (backBE == null || frontBE == null) return;
+        // ONLY attempt gas transfer if BOTH adjacent blocks exist and contain gas payloads
+        if (backBE != null && frontBE != null) {
+            ResourceLocation sourceGasId = getSourceGasId(backBE);
+            int sourceAmount = getSourceGasAmount(backBE);
 
-        // Handle Basin-to-Basin / Basin-to-Tank Gas Transfer with strict conservation
-        ResourceLocation sourceGasId = getSourceGasId(backBE);
-        int sourceAmount = getSourceGasAmount(backBE);
+            if (sourceGasId != null && sourceAmount > 0) {
+                int toTransfer = Math.min(sourceAmount, TRANSFER_RATE);
 
-        if (sourceGasId != null && sourceAmount > 0) {
-            int toTransfer = Math.min(sourceAmount, TRANSFER_RATE);
-
-            if (canTargetAcceptGas(frontBE, sourceGasId, toTransfer)) {
-                int actualDrained = drainGasFromSource(backBE, toTransfer);
-                if (actualDrained > 0) {
-                    fillGasToTarget(frontBE, sourceGasId, actualDrained);
+                if (canTargetAcceptGas(frontBE, sourceGasId, toTransfer)) {
+                    int actualDrained = drainGasFromSource(backBE, toTransfer);
+                    if (actualDrained > 0) {
+                        fillGasToTarget(frontBE, sourceGasId, actualDrained);
+                    }
                 }
             }
         }
     }
 
-        private ResourceLocation getSourceGasId(BlockEntity be) {
+    private ResourceLocation getSourceGasId(BlockEntity be) {
         if (be instanceof SteelFluidTankBlockEntity tank) return tank.getStoredGasId();
         if (be instanceof SteelBasinBlockEntity basin) return basin.getStoredGasId();
         return null;

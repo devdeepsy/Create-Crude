@@ -33,10 +33,10 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -67,6 +67,10 @@ import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
 import com.deepu.create_crude.client.renderer.PumpjackRenderer;
 import com.deepu.create_crude.client.gui.DistillationContainerMenu;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
+import net.neoforged.neoforge.common.NeoForge;
+
+import com.deepu.create_crude.block.entity.BradesitePipeBlockEntity;
+import com.deepu.create_crude.block.entity.ConvertingFluidHandler;
 
 @Mod(CreateCrude.MODID)
 public class CreateCrude {
@@ -101,7 +105,10 @@ public class CreateCrude {
 
     public static final DeferredBlock<Block> HIGH_TENSILE_PIPE = BLOCKS.register("high_tensile_pipe",
         () -> new HighTensilePipeBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(3.0f, 4.0f).sound(SoundType.METAL).noOcclusion()));
-        
+       
+    public static final DeferredBlock<Block> BRADESITE_PIPE = BLOCKS.register("bradesite_pipe",
+        () -> new BradesitePipeBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(3.5f, 5.0f).sound(SoundType.METAL).noOcclusion()));
+    
     public static final DeferredBlock<Block> STEEL_PUMP = BLOCKS.register("steel_pump",
         () -> new SteelPumpBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(2.0f, 3.0f).sound(SoundType.METAL).noOcclusion()));
 
@@ -141,6 +148,7 @@ public class CreateCrude {
             () -> BlockEntityType.Builder.of((pos, state) -> new SteelBasinBlockEntity(CreateCrude.STEEL_BASIN_BE.get(), pos, state),
                 STEEL_BASIN.get()).build(null)); 
     public static final DeferredItem<Item> STEEL_PIPE_ITEM = ITEMS.register("steel_pipe", () -> new BlockItem(STEEL_PIPE.get(), new Item.Properties()));
+    public static final DeferredItem<Item> BRADESITE_PIPE_ITEM = ITEMS.register("bradesite_pipe", () -> new BlockItem(BRADESITE_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> HIGH_TENSILE_PIPE_ITEM = ITEMS.register("high_tensile_pipe", () -> new BlockItem(HIGH_TENSILE_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_PUMP_ITEM = ITEMS.register("steel_pump", () -> new BlockItem(STEEL_PUMP.get(), new Item.Properties()));
     public static final DeferredItem<Item> PUMPJACK_ITEM = ITEMS.register("pumpjack", () -> new BlockItem(PUMPJACK.get(), new Item.Properties()));
@@ -180,12 +188,15 @@ public class CreateCrude {
         BLOCK_ENTITIES.register("gas_aware_pipe", () ->
             BlockEntityType.Builder.of(GasAwarePipeBlockEntity::new,
                 STEEL_PIPE.get(), HIGH_TENSILE_PIPE.get()).build(null));
-    
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BradesitePipeBlockEntity>> BRADESITE_PIPE_BE =
+        BLOCK_ENTITIES.register("bradesite_pipe", () ->
+            BlockEntityType.Builder.of(BradesitePipeBlockEntity::new, BRADESITE_PIPE.get()).build(null));
+
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SteelFluidTankBlockEntity>> STEEL_FLUID_TANK_BE =
         BLOCK_ENTITIES.register("steel_fluid_tank", () ->
             BlockEntityType.Builder.of(SteelFluidTankBlockEntity::new, STEEL_FLUID_TANK.get()).build(null));
     
-                public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SteelPumpBlockEntity>> STEEL_PUMP_BE =
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SteelPumpBlockEntity>> STEEL_PUMP_BE =
         BLOCK_ENTITIES.register("steel_pump", () ->
             BlockEntityType.Builder.of(SteelPumpBlockEntity::new, STEEL_PUMP.get()).build(null)
     );
@@ -238,6 +249,7 @@ public class CreateCrude {
                 GasRegistry.getAll().forEach(entry -> output.accept(entry.item.get()));
                 output.accept(DISTILLATION_CONTROLLER_ITEM.get());
                 output.accept(STEEL_BASIN_ITEM.get());
+                output.accept(BRADESITE_PIPE_ITEM.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
@@ -259,7 +271,6 @@ public class CreateCrude {
         GasRegistry.register(modEventBus);
         MENU_TYPES.register(modEventBus);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
-
     }
 
     public void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
@@ -268,6 +279,7 @@ public class CreateCrude {
         event.registerBlockEntityRenderer(STEEL_FLUID_TANK_BE.get(), SteelFluidTankRenderer::new);
         event.registerBlockEntityRenderer(STEEL_BASIN_BE.get(), SteelBasinRenderer::new);
     }
+    
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(ModFluids.CRUDE_OIL_BUCKET.get());
@@ -285,34 +297,43 @@ public class CreateCrude {
         event.registerSpriteSet(ModParticles.PROPANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.53F, 0.8F, 1.0F));
         event.registerSpriteSet(ModParticles.BUTANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 0.53F, 1.0F));
         event.registerSpriteSet(ModParticles.HYDROGEN_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 1.0F, 1.0F));
-        }
+    }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("HELLO from server starting");
     }
+    
     private void registerCapabilities(net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent event) {
-    // Expose the internal fluid tank capability to the world
         event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, PUMPJACK_BE.get(), (be, side) -> {
             if (side == Direction.UP || side == Direction.DOWN) {
                 return null; 
             }
             return be.getInternalTank();
         });
+        
         event.registerBlockEntity(
-            Capabilities.FluidHandler.BLOCK,              // The capability type
-            CreateCrude.STEEL_FLUID_TANK_BE.get(),        // Your BlockEntity Type registry object
-            (blockEntity, side) -> blockEntity.getFluidHandler(side) // The provider function
+            Capabilities.FluidHandler.BLOCK,
+            CreateCrude.STEEL_FLUID_TANK_BE.get(),
+            (blockEntity, side) -> blockEntity.getFluidHandler(side)
         );
+        
         event.registerBlockEntity(
-        Capabilities.ItemHandler.BLOCK,
-        CreateCrude.SOLID_OUTPUTING_BE.get(),
-        (blockEntity, side) -> blockEntity.getInventory()
+            Capabilities.ItemHandler.BLOCK,
+            CreateCrude.SOLID_OUTPUTING_BE.get(),
+            (blockEntity, side) -> blockEntity.getInventory()
         );
+        
         event.registerBlockEntity(
             Capabilities.FluidHandler.BLOCK,
             CreateCrude.STEEL_BASIN_BE.get(),
             (blockEntity, side) -> blockEntity.getFluidHandler(side)
+        );
+        
+      event.registerBlockEntity(
+            Capabilities.FluidHandler.BLOCK,
+            CreateCrude.BRADESITE_PIPE_BE.get(),
+            (be, side) -> be.getCapabilityHandler(side)
         );
     }
 
@@ -321,6 +342,7 @@ public class CreateCrude {
             try {
                 addBlockToCreateStructure(STEEL_PIPE.get(), "fluid_pipe");
                 addBlockToCreateStructure(HIGH_TENSILE_PIPE.get(), "fluid_pipe");
+                addBlockToCreateStructure(BRADESITE_PIPE.get(), "fluid_pipe");
                 addBlockToCreateStructure(STEEL_PUMP.get(), "mechanical_pump");
                 addBlockToCreateStructure(STEEL_FLUID_TANK.get(), "fluid_tank");
                 addBlockToCreateStructure(STEEL_BASIN.get(),"basin");
@@ -329,12 +351,13 @@ public class CreateCrude {
             }
         });
     }
+    
     private void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
 
         dispatcher.register(
             Commands.literal("pumpjack")
-                .requires(source -> source.hasPermission(2)) // Requires OP level 2 (Cheats enabled)
+                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("test")
                     .executes(context -> {
                         CommandSourceStack source = context.getSource();
@@ -343,13 +366,11 @@ public class CreateCrude {
                             return 0;
                         }
 
-                        // Raycast 10 blocks out from where the player is looking
                         HitResult hitResult = player.pick(10.0D, 1.0F, false);
                         if (hitResult.getType() == HitResult.Type.BLOCK) {
                             BlockHitResult blockHit = (BlockHitResult) hitResult;
                             BlockPos lookPos = blockHit.getBlockPos();
 
-                            // Safely verify if targeted block entity is our pumpjack
                             if (player.level().getBlockEntity(lookPos) instanceof PumpjackBlockEntity pumpjack) {
                                 pumpjack.forceTestPump(player);
                                 return 1;
@@ -362,6 +383,7 @@ public class CreateCrude {
                 )
         );
     }
+    
     @SuppressWarnings("unchecked")
     private void addBlockToCreateStructure(Block block, String path) {
         try {
