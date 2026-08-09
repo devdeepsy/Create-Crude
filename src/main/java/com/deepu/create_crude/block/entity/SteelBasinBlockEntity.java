@@ -103,7 +103,6 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     private void processHydrotreating() {
         if (inputTank == null || outputTank == null || level == null) return;
 
-        // Verify Blaze Burner below is present and superheated (SEETHING)
         BlockState stateBelow = level.getBlockState(worldPosition.below());
         boolean isSuperheated = stateBelow.hasProperty(BlazeBurnerBlock.HEAT_LEVEL) &&
                 stateBelow.getValue(BlazeBurnerBlock.HEAT_LEVEL) == HeatLevel.SEETHING;
@@ -117,53 +116,52 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             return;
         }
 
-        IFluidHandler inputHandler = inputTank.getPrimaryHandler();
-        IFluidHandler outputHandler = outputTank.getPrimaryHandler();
-
-        FluidStack sulfurDieselStack = FluidStack.EMPTY;
-        for (int i = 0; i < inputHandler.getTanks(); i++) {
-            FluidStack stack = inputHandler.getFluidInTank(i);
-            if (!stack.isEmpty() && BuiltInRegistries.FLUID.getKey(stack.getFluid()).getPath().contains("sulfur_diesel")) {
-                sulfurDieselStack = stack;
-                break;
-            }
-        }
-
-        boolean hasSulfurDiesel = !sulfurDieselStack.isEmpty() && sulfurDieselStack.getAmount() >= 2;
-        boolean hasHydrogen = storedGasId != null && 
-                storedGasId.getPath().contains("hydrogen") && storedGasAmount >= 2;
-
-        if (hasSulfurDiesel && hasHydrogen) {
-            Fluid hydrotreatedFluid = SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get();
-            FluidStack outputStack = new FluidStack(hydrotreatedFluid, 2);
-
-            int accepted = outputHandler.fill(outputStack, IFluidHandler.FluidAction.SIMULATE);
-
-            if (accepted >= 2) {
-                if (!isProcessing) {
-                    isProcessing = true;
-                    notifyUpdate();
-                }
-
-                processingTicks++;
-
-                if (processingTicks >= REQUIRED_TICKS) {
-                    processingTicks = 0;
-
-                    inputHandler.drain(new FluidStack(sulfurDieselStack.getFluid(), 2), IFluidHandler.FluidAction.EXECUTE);
-                    drainGas(2, false);
-
-                    outputHandler.fill(outputStack, IFluidHandler.FluidAction.EXECUTE);
-                }
-                return;
-            }
-        }
+        // try diesel first, then kerosene — only one recipe runs per tick
+        if (tryHydrotreat("sulfur_diesel", SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get(), 2, 2)) return;
+        if (tryHydrotreat("sulfur_kerosene", SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get(), 2, 1)) return;
 
         if (isProcessing) {
             isProcessing = false;
             processingTicks = 0;
             notifyUpdate();
         }
+    }
+    private boolean tryHydrotreat(String inputFluidPathContains, Fluid outputFluid, int batchAmount, int h2Required) {
+        IFluidHandler inputHandler = inputTank.getPrimaryHandler();
+        IFluidHandler outputHandler = outputTank.getPrimaryHandler();
+
+        FluidStack inputStack = FluidStack.EMPTY;
+        for (int i = 0; i < inputHandler.getTanks(); i++) {
+            FluidStack stack = inputHandler.getFluidInTank(i);
+            if (!stack.isEmpty() && BuiltInRegistries.FLUID.getKey(stack.getFluid()).getPath().contains(inputFluidPathContains)) {
+                inputStack = stack;
+                break;
+            }
+        }
+
+        boolean hasInput = !inputStack.isEmpty() && inputStack.getAmount() >= batchAmount;
+        boolean hasHydrogen = storedGasId != null &&
+                storedGasId.getPath().contains("hydrogen") && storedGasAmount >= h2Required;
+
+        if (!hasInput || !hasHydrogen) return false;
+
+        FluidStack outputStack = new FluidStack(outputFluid, batchAmount);
+        int accepted = outputHandler.fill(outputStack, IFluidHandler.FluidAction.SIMULATE);
+        if (accepted < batchAmount) return false;
+
+        if (!isProcessing) {
+            isProcessing = true;
+            notifyUpdate();
+        }
+        processingTicks++;
+
+        if (processingTicks >= REQUIRED_TICKS) {
+            processingTicks = 0;
+            inputHandler.drain(new FluidStack(inputStack.getFluid(), batchAmount), IFluidHandler.FluidAction.EXECUTE);
+            drainGas(h2Required, false);
+            outputHandler.fill(outputStack, IFluidHandler.FluidAction.EXECUTE);
+        }
+        return true;
     }
 
     private void spawnGasParticles() {

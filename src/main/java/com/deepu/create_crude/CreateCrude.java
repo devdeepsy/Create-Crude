@@ -1,14 +1,14 @@
 package com.deepu.create_crude;
 
 import org.slf4j.Logger;
-
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.logging.LogUtils;
+import com.simibubi.create.content.fluids.FluidTransportBehaviour;
+import com.simibubi.create.content.fluids.PipeConnection;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -22,9 +22,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.material.EmptyFluid;
 import net.minecraft.world.level.material.MapColor;
-import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.bus.api.IEventBus;
@@ -52,25 +50,19 @@ import com.deepu.create_crude.client.renderer.SeismicDetectorRenderer;
 import com.deepu.create_crude.client.renderer.SteelBasinRenderer;
 import com.deepu.create_crude.client.renderer.SteelFluidTankRenderer;
 import com.deepu.create_crude.gases.GasAwarePipeBlockEntity;
-import com.deepu.create_crude.gases.GasBlock;
 import com.deepu.create_crude.gases.GasRegistry;
 import com.deepu.create_crude.gases.SteelPumpBlockEntity;
 import com.deepu.create_crude.block.*;
-
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.item.Item;
 import net.minecraft.core.Direction;
-
-import com.deepu.create_crude.client.SteelPumpRenderer;
 import com.deepu.create_crude.client.particle.GasCloudParticle;
 import com.deepu.create_crude.client.particle.SulfurSmokeParticle;
 import com.deepu.create_crude.client.renderer.PumpjackRenderer;
 import com.deepu.create_crude.client.gui.DistillationContainerMenu;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.common.NeoForge;
-
 import com.deepu.create_crude.block.entity.BradesitePipeBlockEntity;
-import com.deepu.create_crude.block.entity.ConvertingFluidHandler;
 
 @Mod(CreateCrude.MODID)
 public class CreateCrude {
@@ -190,7 +182,10 @@ public class CreateCrude {
                 STEEL_PIPE.get(), HIGH_TENSILE_PIPE.get()).build(null));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BradesitePipeBlockEntity>> BRADESITE_PIPE_BE =
         BLOCK_ENTITIES.register("bradesite_pipe", () ->
-            BlockEntityType.Builder.of(BradesitePipeBlockEntity::new, BRADESITE_PIPE.get()).build(null));
+            BlockEntityType.Builder.of(
+                (pos, state) -> new BradesitePipeBlockEntity(CreateCrude.BRADESITE_PIPE_BE.get(), pos, state),
+                BRADESITE_PIPE.get()
+            ).build(null));
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SteelFluidTankBlockEntity>> STEEL_FLUID_TANK_BE =
         BLOCK_ENTITIES.register("steel_fluid_tank", () ->
@@ -208,7 +203,7 @@ public class CreateCrude {
                 return state != null ? state.setValue(PumpjackRodBlock.MATERIAL, PumpjackRodBlock.RodMaterial.CAST_IRON) : null;
             }
         });
-    //Menu 
+
     public static final DeferredHolder<MenuType<?>, MenuType<DistillationContainerMenu>> DISTILLATION_CONTAINER = MENU_TYPES.register("distillation_controller", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(DistillationContainerMenu::new));
     
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () ->
@@ -250,6 +245,8 @@ public class CreateCrude {
                 output.accept(DISTILLATION_CONTROLLER_ITEM.get());
                 output.accept(STEEL_BASIN_ITEM.get());
                 output.accept(BRADESITE_PIPE_ITEM.get());
+                output.accept(SulfurFluids.HYDROTREATED_DIESEL_BUCKET.get());
+                output.accept(SulfurFluids.HYDROTREATED_KEROSENE_BUCKET.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
@@ -328,12 +325,6 @@ public class CreateCrude {
             Capabilities.FluidHandler.BLOCK,
             CreateCrude.STEEL_BASIN_BE.get(),
             (blockEntity, side) -> blockEntity.getFluidHandler(side)
-        );
-        
-      event.registerBlockEntity(
-            Capabilities.FluidHandler.BLOCK,
-            CreateCrude.BRADESITE_PIPE_BE.get(),
-            (be, side) -> be.getCapabilityHandler(side)
         );
     }
 

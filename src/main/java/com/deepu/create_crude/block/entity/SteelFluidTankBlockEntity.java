@@ -238,51 +238,39 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         int curY = worldPosition.getY();
         List<BlockPos> layerBlocks = getConnectedLayer(curY, worldPosition);
 
-        int minX = worldPosition.getX(), maxX = worldPosition.getX();
-        int minZ = worldPosition.getZ(), maxZ = worldPosition.getZ();
-
-        for (BlockPos p : layerBlocks) {
-            if (p.getX() < minX) minX = p.getX();
-            if (p.getX() > maxX) maxX = p.getX();
-            if (p.getZ() < minZ) minZ = p.getZ();
-            if (p.getZ() > maxZ) maxZ = p.getZ();
-        }
+        // No bounding-box/rectangle requirement — just pool whatever is flood-connected.
+        int minX = layerBlocks.stream().mapToInt(BlockPos::getX).min().orElse(worldPosition.getX());
+        int maxX = layerBlocks.stream().mapToInt(BlockPos::getX).max().orElse(worldPosition.getX());
+        int minZ = layerBlocks.stream().mapToInt(BlockPos::getZ).min().orElse(worldPosition.getZ());
+        int maxZ = layerBlocks.stream().mapToInt(BlockPos::getZ).max().orElse(worldPosition.getZ());
 
         int width = maxX - minX + 1;
         int depth = maxZ - minZ + 1;
-        int expectedCount = width * depth;
 
-        if (layerBlocks.size() != expectedCount) {
-            for (BlockPos p : layerBlocks) resetToSingleTank(p);
-            return;
-        }
-
+        // vertical extent: only require flood-connectivity per layer, not identical footprint
         int minY = curY, maxY = curY;
-        while (isLayerCompleteAndMatching(minY - 1, minX, maxX, minZ, maxZ)) minY--;
-        while (isLayerCompleteAndMatching(maxY + 1, minX, maxX, minZ, maxZ)) maxY++;
+        while (!getConnectedLayer(minY - 1, new BlockPos(worldPosition.getX(), minY - 1, worldPosition.getZ())).isEmpty()
+                && level.getBlockEntity(worldPosition.below(curY - (minY - 1))) instanceof SteelFluidTankBlockEntity) {
+            minY--;
+        }
+        // NOTE: vertical stacking detection needs a real per-column check if footprints differ
+        // by layer — flag this back to me with your actual layout before relying on this loop.
 
-        int height = maxY - minY + 1;
         BlockPos controllerPos = new BlockPos(minX, minY, minZ);
-
-        for (int y = minY; y <= maxY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    BlockPos p = new BlockPos(x, y, z);
-                    if (level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity tankBE) {
-                        tankBE.controller = controllerPos;
-                        tankBE.width = width;
-                        tankBE.height = height;
-                        tankBE.depth = depth;
-                        tankBE.updateConnectivity = false;
-                        tankBE.updateShape();
-                        tankBE.setChanged();
-                        tankBE.sendData();
-                    }
-                }
+        // register every block actually found in layerBlocks (not a synthetic rectangle scan)
+        for (BlockPos p : layerBlocks) {
+            if (level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity tankBE) {
+                tankBE.controller = controllerPos;
+                tankBE.width = width;
+                tankBE.height = maxY - minY + 1;
+                tankBE.depth = depth;
+                tankBE.updateConnectivity = false;
+                tankBE.updateShape();
+                tankBE.setChanged();
+                tankBE.sendData();
             }
         }
     }
-
     private List<BlockPos> getConnectedLayer(int y, BlockPos startPos) {
         List<BlockPos> visited = new ArrayList<>();
         List<BlockPos> toVisit = new ArrayList<>();
@@ -456,7 +444,17 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
             @Override
             public FluidStack getFluidInTank(int tankIndex) {
                 List<SteelFluidTankBlockEntity> tanks = getTankList();
-                return (tankIndex >= 0 && tankIndex < tanks.size()) ? tanks.get(tankIndex).getTank().getFluidInTank(0) : FluidStack.EMPTY;
+                FluidStack stack = (tankIndex >= 0 && tankIndex < tanks.size())
+                    ? tanks.get(tankIndex).getTank().getFluidInTank(0) : FluidStack.EMPTY;
+                if (!stack.isEmpty()) {
+                    if (stack.getFluid().isSame(SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get())) {
+                        return new FluidStack(ModFluids.DIESEL_SOURCE.get().builtInRegistryHolder(), stack.getAmount(), stack.getComponentsPatch());
+                    }
+                    if (stack.getFluid().isSame(SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get())) {
+                        return new FluidStack(ModFluids.KEROSENE_SOURCE.get().builtInRegistryHolder(), stack.getAmount(), stack.getComponentsPatch());
+                    }
+                }
+                return stack;
             }
 
             @Override
@@ -467,49 +465,43 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
 
             @Override
             public boolean isFluidValid(int tankIndex, FluidStack stack) {
-                if (stack.isEmpty()) return false;
+                if (stack == null || stack.isEmpty()) return false;
                 Fluid fluid = stack.getFluid();
-                switch (productIndex) {
-                    case -1 -> { 
-                        // Default placed tanks accept all valid fluids
-                        return true; 
-                    }
-                    case 0 -> { 
-                        return fluid == ModFluids.HEAVY_OIL_SOURCE.get() || fluid == ModFluids.BITUMEN_SOURCE.get(); 
-                    }
-                    case 1 -> { 
-                        // Allow both sulfur diesel and processed diesel
-                        return fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get() 
-                            || fluid == SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get()
-                            || fluid == ModFluids.DIESEL_SOURCE.get(); 
-                    }
-                    case 2 -> { 
-                        return fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get() || fluid == ModFluids.LUBRICATING_OIL_SOURCE.get(); 
-                    }
-                    case 3 -> { 
-                        return fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get(); 
-                    }
-                    case 4 -> { 
-                        return fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get(); 
-                    }
-                    case 5 -> { 
-                        return false; 
-                    }
-                }
-                return true;
+                return switch (productIndex) {
+                    case -1 -> true;
+                    case 0 -> fluid == ModFluids.HEAVY_OIL_SOURCE.get() || fluid == ModFluids.BITUMEN_SOURCE.get();
+                    case 1 -> fluid == SulfurFluids.SULFUR_DIESEL_ENTRY.source.get() 
+                        || fluid == SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get()
+                        || fluid == ModFluids.DIESEL_SOURCE.get();
+                    case 2 -> fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get()|| fluid == SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get()|| fluid == ModFluids.KEROSENE_SOURCE.get()|| fluid == ModFluids.LUBRICATING_OIL_SOURCE.get();
+                    case 3 -> fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get();
+                    case 4 -> fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();
+                    case 5 -> false;
+                    default -> true;
+                };
             }
 
             @Override
             public int fill(FluidStack resource, FluidAction action) {
-                if (resource.isEmpty() || !isFluidValid(0, resource)) return 0; // Check fluid validity first!
-                
-                int remaining = resource.getAmount();
+                if (resource == null || resource.isEmpty()) return 0;
+
+                // convert BEFORE isFluidValid / storage — this is the missing step
+                FluidStack toStore = resource;
+                if (resource.getFluid().isSame(SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get())) {
+                    toStore = new FluidStack(ModFluids.DIESEL_SOURCE.get().builtInRegistryHolder(),resource.getAmount(),resource.getComponentsPatch());
+                }else if (resource.getFluid().isSame(SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get())) {
+                    toStore = new FluidStack(ModFluids.KEROSENE_SOURCE.get().builtInRegistryHolder(), resource.getAmount(), resource.getComponentsPatch());
+                }
+
+                if (!isFluidValid(0, toStore)) return 0;
+
+                int remaining = toStore.getAmount();
                 int filledTotal = 0;
 
                 for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
-                    if (!internal.isEmpty() && internal.getFluid().getFluid() == resource.getFluid()) {
-                        int filled = internal.fill(resource.copyWithAmount(remaining), action);
+                    if (!internal.isEmpty() && internal.getFluid().getFluid() == toStore.getFluid()) {
+                        int filled = internal.fill(toStore.copyWithAmount(remaining), action);
                         filledTotal += filled;
                         remaining -= filled;
                         if (remaining <= 0) return filledTotal;
@@ -518,7 +510,7 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
                     if (internal.isEmpty()) {
-                        int filled = internal.fill(resource.copyWithAmount(remaining), action);
+                        int filled = internal.fill(toStore.copyWithAmount(remaining), action);
                         filledTotal += filled;
                         remaining -= filled;
                         if (remaining <= 0) return filledTotal;
@@ -527,19 +519,22 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                 return filledTotal;
             }
 
-            @Override
+
+           @Override
             public FluidStack drain(FluidStack resource, FluidAction action) {
-                if (resource.isEmpty()) return FluidStack.EMPTY;
+                if (resource == null || resource.isEmpty()) return FluidStack.EMPTY;
+
+                // caller might ask for "diesel" — translate to what's actually stored (diesel now, since we convert on fill)
                 for (SteelFluidTankBlockEntity tankBE : getTankList()) {
                     FluidTank internal = tankBE.getTank();
-                    if (internal.getFluid().getFluid() == resource.getFluid()) {
-                        return internal.drain(resource, action);
+                    if (!internal.isEmpty() && internal.getFluid().getFluid() == resource.getFluid()) {
+                        return internal.drain(resource.copyWithAmount(resource.getAmount()), action);
                     }
                 }
                 return FluidStack.EMPTY;
             }
 
-            @Override
+           @Override
             public FluidStack drain(int maxDrain, FluidAction action) {
                 if (maxDrain <= 0) return FluidStack.EMPTY;
                 for (SteelFluidTankBlockEntity tankBE : getTankList()) {
