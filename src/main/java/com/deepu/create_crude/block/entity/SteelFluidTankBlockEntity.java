@@ -238,36 +238,47 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
         int curY = worldPosition.getY();
         List<BlockPos> layerBlocks = getConnectedLayer(curY, worldPosition);
 
-        // No bounding-box/rectangle requirement — just pool whatever is flood-connected.
-        int minX = layerBlocks.stream().mapToInt(BlockPos::getX).min().orElse(worldPosition.getX());
-        int maxX = layerBlocks.stream().mapToInt(BlockPos::getX).max().orElse(worldPosition.getX());
-        int minZ = layerBlocks.stream().mapToInt(BlockPos::getZ).min().orElse(worldPosition.getZ());
-        int maxZ = layerBlocks.stream().mapToInt(BlockPos::getZ).max().orElse(worldPosition.getZ());
+        int minX = worldPosition.getX(), maxX = worldPosition.getX();
+        int minZ = worldPosition.getZ(), maxZ = worldPosition.getZ();
+
+        for (BlockPos p : layerBlocks) {
+            if (p.getX() < minX) minX = p.getX();
+            if (p.getX() > maxX) maxX = p.getX();
+            if (p.getZ() < minZ) minZ = p.getZ();
+            if (p.getZ() > maxZ) maxZ = p.getZ();
+        }
 
         int width = maxX - minX + 1;
         int depth = maxZ - minZ + 1;
+        int expectedCount = width * depth;
 
-        // vertical extent: only require flood-connectivity per layer, not identical footprint
-        int minY = curY, maxY = curY;
-        while (!getConnectedLayer(minY - 1, new BlockPos(worldPosition.getX(), minY - 1, worldPosition.getZ())).isEmpty()
-                && level.getBlockEntity(worldPosition.below(curY - (minY - 1))) instanceof SteelFluidTankBlockEntity) {
-            minY--;
+        if (layerBlocks.size() != expectedCount) {
+            for (BlockPos p : layerBlocks) resetToSingleTank(p);
+            return;
         }
-        // NOTE: vertical stacking detection needs a real per-column check if footprints differ
-        // by layer — flag this back to me with your actual layout before relying on this loop.
 
+        int minY = curY, maxY = curY;
+        while (isLayerCompleteAndMatching(minY - 1, minX, maxX, minZ, maxZ)) minY--;
+        while (isLayerCompleteAndMatching(maxY + 1, minX, maxX, minZ, maxZ)) maxY++;
+
+        int height = maxY - minY + 1;
         BlockPos controllerPos = new BlockPos(minX, minY, minZ);
-        // register every block actually found in layerBlocks (not a synthetic rectangle scan)
-        for (BlockPos p : layerBlocks) {
-            if (level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity tankBE) {
-                tankBE.controller = controllerPos;
-                tankBE.width = width;
-                tankBE.height = maxY - minY + 1;
-                tankBE.depth = depth;
-                tankBE.updateConnectivity = false;
-                tankBE.updateShape();
-                tankBE.setChanged();
-                tankBE.sendData();
+
+        for (int y = minY; y <= maxY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockPos p = new BlockPos(x, y, z);
+                    if (level.getBlockEntity(p) instanceof SteelFluidTankBlockEntity tankBE) {
+                        tankBE.controller = controllerPos;
+                        tankBE.width = width;
+                        tankBE.height = height;
+                        tankBE.depth = depth;
+                        tankBE.updateConnectivity = false;
+                        tankBE.updateShape();
+                        tankBE.setChanged();
+                        tankBE.sendData();
+                    }
+                }
             }
         }
     }
@@ -453,6 +464,9 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                     if (stack.getFluid().isSame(SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get())) {
                         return new FluidStack(ModFluids.KEROSENE_SOURCE.get().builtInRegistryHolder(), stack.getAmount(), stack.getComponentsPatch());
                     }
+                    if (stack.getFluid().isSame(SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get())) {
+                        return new FluidStack(ModFluids.GASOLINE_SOURCE.get().builtInRegistryHolder(), stack.getAmount(), stack.getComponentsPatch());
+                    }
                 }
                 return stack;
             }
@@ -474,7 +488,9 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                         || fluid == SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get()
                         || fluid == ModFluids.DIESEL_SOURCE.get();
                     case 2 -> fluid == SulfurFluids.SULFUR_KEROSENE_ENTRY.source.get()|| fluid == SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get()|| fluid == ModFluids.KEROSENE_SOURCE.get()|| fluid == ModFluids.LUBRICATING_OIL_SOURCE.get();
-                    case 3 -> fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get();
+                    case 3 -> fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get()
+                        || fluid == SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get()
+                        || fluid == ModFluids.GASOLINE_SOURCE.get();
                     case 4 -> fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();
                     case 5 -> false;
                     default -> true;
@@ -491,6 +507,8 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                     toStore = new FluidStack(ModFluids.DIESEL_SOURCE.get().builtInRegistryHolder(),resource.getAmount(),resource.getComponentsPatch());
                 }else if (resource.getFluid().isSame(SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get())) {
                     toStore = new FluidStack(ModFluids.KEROSENE_SOURCE.get().builtInRegistryHolder(), resource.getAmount(), resource.getComponentsPatch());
+                }else if (resource.getFluid().isSame(SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get())) {
+                    toStore = new FluidStack(ModFluids.GASOLINE_SOURCE.get().builtInRegistryHolder(), resource.getAmount(), resource.getComponentsPatch());
                 }
 
                 if (!isFluidValid(0, toStore)) return 0;

@@ -46,6 +46,10 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     // Animation variables
     public float mixerRotation = 0f;
     public float prevMixerRotation = 0f;
+    private static final int NAPHTHA_SPLIT_BATCH = 2;   // total sulfur_naphtha consumed per cycle
+    private static final int NAPHTHA_SPLIT_TICKS = 40;  // separate progress counter — see flaw below
+    private int naphthaSplitTicks = 0;
+    private boolean isSplittingNaphtha = false;
 
     private final GasTankHandler gasTankHandler = new GasTankHandler();
 
@@ -100,6 +104,8 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         }
     }
 
+    
+    
     private void processHydrotreating() {
         if (inputTank == null || outputTank == null || level == null) return;
 
@@ -116,9 +122,10 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             return;
         }
 
-        // try diesel first, then kerosene — only one recipe runs per tick
+        // try diesel first, then kerosene, then gasoline — only one recipe runs per tick
         if (tryHydrotreat("sulfur_diesel", SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get(), 2, 2)) return;
         if (tryHydrotreat("sulfur_kerosene", SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get(), 2, 1)) return;
+        if (tryHydrotreat("sulfur_gasoline", SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get(), 2, 3)) return;
 
         if (isProcessing) {
             isProcessing = false;
@@ -126,6 +133,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             notifyUpdate();
         }
     }
+    
     private boolean tryHydrotreat(String inputFluidPathContains, Fluid outputFluid, int batchAmount, int h2Required) {
         IFluidHandler inputHandler = inputTank.getPrimaryHandler();
         IFluidHandler outputHandler = outputTank.getPrimaryHandler();

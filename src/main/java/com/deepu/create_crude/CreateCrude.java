@@ -247,6 +247,7 @@ public class CreateCrude {
                 output.accept(BRADESITE_PIPE_ITEM.get());
                 output.accept(SulfurFluids.HYDROTREATED_DIESEL_BUCKET.get());
                 output.accept(SulfurFluids.HYDROTREATED_KEROSENE_BUCKET.get());
+                output.accept(SulfurFluids.HYDROTREATED_GASOLINE_BUCKET.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
