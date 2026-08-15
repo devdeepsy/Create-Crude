@@ -23,6 +23,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
 import org.jetbrains.annotations.Nullable;
@@ -48,6 +49,17 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     private static final int NAPHTHA_SPLIT_TICKS = 40;  // Process duration
     private int naphthaSplitTicks = 0;
     private boolean isSplittingNaphtha = false;
+
+    // Dedicated Secondary Tank for Dual-Fluid Output Operations
+    private final FluidTank heavyOutputTank = new FluidTank(10000) {
+        @Override
+        protected void onContentsChanged() {
+            setChanged();
+            if (level != null && !level.isClientSide) {
+                notifyUpdate();
+            }
+        }
+    };
 
     private final GasTankHandler gasTankHandler = new GasTankHandler();
 
@@ -79,7 +91,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     }
 
     /**
-     * Handles Naphtha Splitting into Light Naphtha and Heavy Naphtha.
+     * Handles Naphtha Splitting into Light Naphtha and Heavy Naphtha cleanly across dual output tanks.
      */
     private boolean processNaphthaSplitting() {
         if (inputTank == null || outputTank == null || level == null) return false;
@@ -99,7 +111,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         }
 
         IFluidHandler inputHandler = inputTank.getPrimaryHandler();
-        IFluidHandler outputHandler = outputTank.getPrimaryHandler();
+        IFluidHandler lightOutputHandler = outputTank.getPrimaryHandler();
 
         // 1. Locate Sulfur Naphtha in input
         FluidStack inputStack = FluidStack.EMPTY;
@@ -127,12 +139,12 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         FluidStack lightStack = new FluidStack(lightNaphtha, NAPHTHA_SPLIT_BATCH / 2);
         FluidStack heavyStack = new FluidStack(heavyNaphtha, NAPHTHA_SPLIT_BATCH / 2);
 
-        // 3. TRANSACTION SIMULATION - Both MUST fit before tick advances
-        int lightAccepted = outputHandler.fill(lightStack, IFluidHandler.FluidAction.SIMULATE);
-        int heavyAccepted = outputHandler.fill(heavyStack, IFluidHandler.FluidAction.SIMULATE);
+        // 3. TRANSACTION SIMULATION across separate target tanks
+        int lightAccepted = lightOutputHandler.fill(lightStack, IFluidHandler.FluidAction.SIMULATE);
+        int heavyAccepted = heavyOutputTank.fill(heavyStack, IFluidHandler.FluidAction.SIMULATE);
 
         if (lightAccepted < lightStack.getAmount() || heavyAccepted < heavyStack.getAmount()) {
-            return false; // Can't fit both outputs in output handler right now
+            return false; // Cannot fit both outputs concurrently
         }
 
         // 4. Progress Processing
@@ -147,10 +159,10 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         if (naphthaSplitTicks >= NAPHTHA_SPLIT_TICKS) {
             naphthaSplitTicks = 0;
 
-            // Execute input drain and dual output insertion
+            // Execute input drain and dual output insertion into distinct tanks
             inputHandler.drain(new FluidStack(inputStack.getFluid(), NAPHTHA_SPLIT_BATCH), IFluidHandler.FluidAction.EXECUTE);
-            outputHandler.fill(lightStack, IFluidHandler.FluidAction.EXECUTE);
-            outputHandler.fill(heavyStack, IFluidHandler.FluidAction.EXECUTE);
+            lightOutputHandler.fill(lightStack, IFluidHandler.FluidAction.EXECUTE);
+            heavyOutputTank.fill(heavyStack, IFluidHandler.FluidAction.EXECUTE);
             notifyUpdate();
         }
 
@@ -176,7 +188,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         if (tryHydrotreat("sulfur_diesel", SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get(), 2, 2)) return;
         if (tryHydrotreat("sulfur_kerosene", SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get(), 2, 1)) return;
         if (tryHydrotreat("sulfur_gasoline", SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get(), 2, 3)) return;
-
+        if (tryHydrotreat("heavy_naphtha", SulfurFluids.HYDROTREATED_HEAVY_NAPHTHA_ENTRY.source.get(), 2, 4)) return;
         if (isProcessing) {
             isProcessing = false;
             processingTicks = 0;
@@ -334,6 +346,9 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         if (outputTank != null && !outputTank.getPrimaryHandler().getFluidInTank(0).isEmpty()) {
             return outputTank.getPrimaryHandler().getFluidInTank(0);
         }
+        if (!heavyOutputTank.isEmpty()) {
+            return heavyOutputTank.getFluid();
+        }
         return FluidStack.EMPTY;
     }
 
@@ -365,8 +380,8 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         if (inputTank == null || outputTank == null) return null;
 
         IFluidHandler baseHandler = (side == Direction.DOWN)
-                ? outputTank.getCapability()
-                : new CombinedTankWrapper(inputTank.getCapability(), outputTank.getCapability());
+                ? new CombinedTankWrapper(outputTank.getCapability(), heavyOutputTank)
+                : new CombinedTankWrapper(inputTank.getCapability(), outputTank.getCapability(), heavyOutputTank);
 
         return new CombinedTankWrapper(baseHandler, gasTankHandler);
     }
@@ -384,6 +399,14 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     public boolean addToGoggleTooltip(List<Component> tooltip, boolean isPlayerSneaking) {
         super.addToGoggleTooltip(tooltip, isPlayerSneaking);
 
+        if (!heavyOutputTank.isEmpty()) {
+            FluidStack heavyStack = heavyOutputTank.getFluid();
+            tooltip.add(Component.literal("  ").append(Component.literal("Heavy Naphtha Output:").withStyle(ChatFormatting.GRAY)));
+            tooltip.add(Component.literal("    ").append(heavyStack.getHoverName())
+                    .append(": ").withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(heavyStack.getAmount() + " / " + heavyOutputTank.getCapacity() + " mB").withStyle(ChatFormatting.GOLD)));
+        }
+
         tooltip.add(Component.literal("  ").append(Component.literal("Gas Storage:").withStyle(ChatFormatting.GRAY)));
         if (storedGasId != null && storedGasAmount > 0) {
             String gasName = storedGasId.getPath().replace("_block", "").replace("_", " ");
@@ -399,6 +422,9 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     @Override
     public void read(CompoundTag compound, HolderLookup.Provider registers, boolean clientPacket) {
         super.read(compound, registers, clientPacket);
+        if (compound.contains("HeavyOutputTank")) {
+            heavyOutputTank.readFromNBT(registers, compound.getCompound("HeavyOutputTank"));
+        }
         if (compound.contains("GasId")) {
             this.storedGasId = ResourceLocation.parse(compound.getString("GasId"));
         } else {
@@ -414,6 +440,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     @Override
     public void write(CompoundTag compound, HolderLookup.Provider registers, boolean clientPacket) {
         super.write(compound, registers, clientPacket);
+        compound.put("HeavyOutputTank", heavyOutputTank.writeToNBT(registers, new CompoundTag()));
         if (storedGasId != null) {
             compound.putString("GasId", storedGasId.toString());
         }

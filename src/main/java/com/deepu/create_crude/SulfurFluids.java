@@ -102,6 +102,13 @@ public class SulfurFluids {
         ResourceLocation.parse("minecraft:block/water_still"),
         ResourceLocation.parse("minecraft:block/water_flow")
     );
+    public static final ModFluids.FluidEntry HYDROTREATED_HEAVY_NAPHTHA_ENTRY = registerSulfurFluid(
+        "hydrotreated_heavy_naphtha", 2800, 2700, 0xFFE0C070,
+        2, 16, 2,
+        ResourceLocation.parse("minecraft:block/water_still"),
+        ResourceLocation.parse("minecraft:block/water_flow")
+    );
+
 
     // -----------------------------------------------------------------
     // Helper method – uses ModFluids.registerFluid with custom block
@@ -139,4 +146,5 @@ public class SulfurFluids {
     public static final DeferredHolder<Item, BucketItem> HYDROTREATED_GASOLINE_BUCKET = HYDROTREATED_GASOLINE_ENTRY.bucket;
     public static final DeferredHolder<Item, BucketItem> LIGHT_NAPHTHA_BUCKET = LIGHT_NAPHTHA_ENTRY.bucket;
     public static final DeferredHolder<Item, BucketItem> HEAVY_NAPHTHA_BUCKET = HEAVY_NAPHTHA_ENTRY.bucket;
+    public static final DeferredHolder<Item,BucketItem> HYDROTREATED_HEAVY_NAPHTHA_BUCKET = HYDROTREATED_HEAVY_NAPHTHA_ENTRY.bucket;
 }

@@ -247,6 +247,7 @@ public class CreateCrude {
                 output.accept(SulfurFluids.HYDROTREATED_GASOLINE_BUCKET.get());
                 output.accept(SulfurFluids.HEAVY_NAPHTHA_BUCKET.get());
                 output.accept(SulfurFluids.LIGHT_NAPHTHA_BUCKET.get());
+                output.accept(SulfurFluids.HYDROTREATED_HEAVY_NAPHTHA_BUCKET.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {

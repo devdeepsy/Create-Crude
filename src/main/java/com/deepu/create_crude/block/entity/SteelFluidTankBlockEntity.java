@@ -491,7 +491,11 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                     case 3 -> fluid == SulfurFluids.SULFUR_GASOLINE_ENTRY.source.get()
                         || fluid == SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get()
                         || fluid == ModFluids.GASOLINE_SOURCE.get();
-                    case 4 -> fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get();
+                   case 4 -> fluid == SulfurFluids.SULFUR_NAPHTHA_ENTRY.source.get()
+                        || fluid == SulfurFluids.HEAVY_NAPHTHA_ENTRY.source.get()
+                        || fluid == SulfurFluids.LIGHT_NAPHTHA_ENTRY.source.get()
+                        || fluid == SulfurFluids.HYDROTREATED_HEAVY_NAPHTHA_ENTRY.source.get()
+                        || fluid == ModFluids.NAPHTHA_SOURCE.get();
                     case 5 -> false;
                     default -> true;
                 };
@@ -509,6 +513,8 @@ public class SteelFluidTankBlockEntity extends BlockEntity implements IHaveGoggl
                     toStore = new FluidStack(ModFluids.KEROSENE_SOURCE.get().builtInRegistryHolder(), resource.getAmount(), resource.getComponentsPatch());
                 }else if (resource.getFluid().isSame(SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get())) {
                     toStore = new FluidStack(ModFluids.GASOLINE_SOURCE.get().builtInRegistryHolder(), resource.getAmount(), resource.getComponentsPatch());
+                }else if (resource.getFluid().isSame(SulfurFluids.HYDROTREATED_HEAVY_NAPHTHA_ENTRY.source.get())) {
+                    toStore = new FluidStack(ModFluids.NAPHTHA_SOURCE.get().builtInRegistryHolder(), resource.getAmount(), resource.getComponentsPatch());
                 }
 
                 if (!isFluidValid(0, toStore)) return 0;
