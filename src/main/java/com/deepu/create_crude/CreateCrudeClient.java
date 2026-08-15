@@ -4,7 +4,6 @@ import com.deepu.create_crude.client.CreateCrudePartialModels;
 import com.deepu.create_crude.client.SteelPumpRenderer;
 import com.deepu.create_crude.client.gui.DistillationScreen;
 import com.deepu.create_crude.client.renderer.SteelBasinRenderer;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;

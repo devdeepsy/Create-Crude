@@ -1,11 +1,7 @@
 package com.deepu.create_crude.client;
 
 import com.deepu.create_crude.block.PumpjackRodBlock;
-import com.deepu.create_crude.client.renderer.PumpjackRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.simibubi.create.content.fluids.tank.FluidTankCTBehaviour;
-import com.simibubi.create.foundation.block.connected.CTSpriteShifter;
-import com.simibubi.create.foundation.block.connected.ConnectedTextureBehaviour;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
@@ -21,14 +17,8 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RenderHighlightEvent;
 import com.deepu.create_crude.CreateCrude;
-import net.neoforged.neoforge.client.extensions.common.IClientFluidTypeExtensions;
-import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
-import net.minecraft.resources.ResourceLocation;
-import com.deepu.create_crude.ModFluids;
 
 @EventBusSubscriber(modid = CreateCrude.MODID, bus = EventBusSubscriber.Bus.GAME, value = Dist.CLIENT)
 public class ClientModEvents {

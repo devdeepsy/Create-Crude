@@ -5,6 +5,8 @@ import com.deepu.create_crude.gases.GasBlock;
 import com.deepu.create_crude.gases.GasRegistry;
 import com.simibubi.create.api.equipment.goggles.IHaveGoggleInformation;
 import com.simibubi.create.content.processing.basin.BasinBlockEntity;
+import com.simibubi.create.content.processing.burner.BlazeBurnerBlock;
+import com.simibubi.create.content.processing.burner.BlazeBurnerBlock.HeatLevel;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -13,8 +15,6 @@ import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -23,13 +23,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.fluids.FluidStack;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-import net.neoforged.neoforge.fluids.capability.templates.FluidTank;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.wrapper.CombinedInvWrapper;
 import org.jetbrains.annotations.Nullable;
-import com.simibubi.create.content.processing.burner.BlazeBurnerBlock;
-import com.simibubi.create.content.processing.burner.BlazeBurnerBlock.HeatLevel;
-import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.List;
 
@@ -46,8 +42,10 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     // Animation variables
     public float mixerRotation = 0f;
     public float prevMixerRotation = 0f;
-    private static final int NAPHTHA_SPLIT_BATCH = 2;   // total sulfur_naphtha consumed per cycle
-    private static final int NAPHTHA_SPLIT_TICKS = 40;  // separate progress counter — see flaw below
+
+    // Naphtha Splitting Execution Variables
+    private static final int NAPHTHA_SPLIT_BATCH = 2;   // 2 mB Sulfur Naphtha input
+    private static final int NAPHTHA_SPLIT_TICKS = 40;  // Process duration
     private int naphthaSplitTicks = 0;
     private boolean isSplittingNaphtha = false;
 
@@ -65,47 +63,100 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             if (level.isClientSide) {
                 // Smooth frame-by-frame rotation tracking for renderer
                 this.prevMixerRotation = this.mixerRotation;
-                if (this.isProcessing) {
+                if (this.isProcessing || this.isSplittingNaphtha) {
                     this.mixerRotation = (this.mixerRotation + 12.0f) % 360.0f;
                 }
                 spawnGasParticles();
             } else {
                 siphonOverheadGasBlock();
-                processHydrotreating();
-            }
-        }
-    }
-
-    /**
-     * Pulls gas from a GasBlock placed in world space directly above the basin into storedGasAmount.
-     */
-    private void siphonOverheadGasBlock() {
-        if (level == null || storedGasAmount >= MAX_GAS_CAPACITY) return;
-
-        BlockPos abovePos = worldPosition.above();
-        BlockState aboveState = level.getBlockState(abovePos);
-
-        if (aboveState.getBlock() instanceof GasBlock) {
-            ResourceLocation gasId = BuiltInRegistries.BLOCK.getKey(aboveState.getBlock());
-
-            // 250 mB intake per siphon tick batch
-            int intakeAmount = 250; 
-            if (canAcceptGas(gasId, intakeAmount)) {
-                fillGas(gasId, intakeAmount);
-
-                // Reduce gas block pressure or clear it
-                if (aboveState.hasProperty(GasBlock.PRESSURE) && aboveState.getValue(GasBlock.PRESSURE) > 0) {
-                    int currentPressure = aboveState.getValue(GasBlock.PRESSURE);
-                    level.setBlock(abovePos, aboveState.setValue(GasBlock.PRESSURE, currentPressure - 1), 3);
-                } else {
-                    level.removeBlock(abovePos, false);
+                
+                // Prioritize Splitting over Hydrotreating
+                if (!processNaphthaSplitting()) {
+                    processHydrotreating();
                 }
             }
         }
     }
 
-    
-    
+    /**
+     * Handles Naphtha Splitting into Light Naphtha and Heavy Naphtha.
+     */
+    private boolean processNaphthaSplitting() {
+        if (inputTank == null || outputTank == null || level == null) return false;
+
+        // Requires KINDLED or higher heat level
+        BlockState stateBelow = level.getBlockState(worldPosition.below());
+        boolean isHeated = stateBelow.hasProperty(BlazeBurnerBlock.HEAT_LEVEL) &&
+                stateBelow.getValue(BlazeBurnerBlock.HEAT_LEVEL).isAtLeast(HeatLevel.KINDLED);
+
+        if (!isHeated) {
+            if (isSplittingNaphtha) {
+                isSplittingNaphtha = false;
+                naphthaSplitTicks = 0;
+                notifyUpdate();
+            }
+            return false;
+        }
+
+        IFluidHandler inputHandler = inputTank.getPrimaryHandler();
+        IFluidHandler outputHandler = outputTank.getPrimaryHandler();
+
+        // 1. Locate Sulfur Naphtha in input
+        FluidStack inputStack = FluidStack.EMPTY;
+        for (int i = 0; i < inputHandler.getTanks(); i++) {
+            FluidStack stack = inputHandler.getFluidInTank(i);
+            if (!stack.isEmpty() && BuiltInRegistries.FLUID.getKey(stack.getFluid()).getPath().contains("sulfur_naphtha")) {
+                inputStack = stack;
+                break;
+            }
+        }
+
+        if (inputStack.isEmpty() || inputStack.getAmount() < NAPHTHA_SPLIT_BATCH) {
+            if (isSplittingNaphtha) {
+                isSplittingNaphtha = false;
+                naphthaSplitTicks = 0;
+                notifyUpdate();
+            }
+            return false;
+        }
+
+        // 2. Prepare Outputs (1 mB Light + 1 mB Heavy per 2 mB Sulfur Naphtha batch)
+        Fluid lightNaphtha = SulfurFluids.LIGHT_NAPHTHA_ENTRY.source.get();
+        Fluid heavyNaphtha = SulfurFluids.HEAVY_NAPHTHA_ENTRY.source.get();
+
+        FluidStack lightStack = new FluidStack(lightNaphtha, NAPHTHA_SPLIT_BATCH / 2);
+        FluidStack heavyStack = new FluidStack(heavyNaphtha, NAPHTHA_SPLIT_BATCH / 2);
+
+        // 3. TRANSACTION SIMULATION - Both MUST fit before tick advances
+        int lightAccepted = outputHandler.fill(lightStack, IFluidHandler.FluidAction.SIMULATE);
+        int heavyAccepted = outputHandler.fill(heavyStack, IFluidHandler.FluidAction.SIMULATE);
+
+        if (lightAccepted < lightStack.getAmount() || heavyAccepted < heavyStack.getAmount()) {
+            return false; // Can't fit both outputs in output handler right now
+        }
+
+        // 4. Progress Processing
+        if (!isSplittingNaphtha) {
+            isSplittingNaphtha = true;
+            notifyUpdate();
+        }
+
+        naphthaSplitTicks++;
+
+        // 5. Complete Batch Execution
+        if (naphthaSplitTicks >= NAPHTHA_SPLIT_TICKS) {
+            naphthaSplitTicks = 0;
+
+            // Execute input drain and dual output insertion
+            inputHandler.drain(new FluidStack(inputStack.getFluid(), NAPHTHA_SPLIT_BATCH), IFluidHandler.FluidAction.EXECUTE);
+            outputHandler.fill(lightStack, IFluidHandler.FluidAction.EXECUTE);
+            outputHandler.fill(heavyStack, IFluidHandler.FluidAction.EXECUTE);
+            notifyUpdate();
+        }
+
+        return true;
+    }
+
     private void processHydrotreating() {
         if (inputTank == null || outputTank == null || level == null) return;
 
@@ -122,7 +173,6 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             return;
         }
 
-        // try diesel first, then kerosene, then gasoline — only one recipe runs per tick
         if (tryHydrotreat("sulfur_diesel", SulfurFluids.HYDROTREATED_DIESEL_ENTRY.source.get(), 2, 2)) return;
         if (tryHydrotreat("sulfur_kerosene", SulfurFluids.HYDROTREATED_KEROSENE_ENTRY.source.get(), 2, 1)) return;
         if (tryHydrotreat("sulfur_gasoline", SulfurFluids.HYDROTREATED_GASOLINE_ENTRY.source.get(), 2, 3)) return;
@@ -133,7 +183,7 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             notifyUpdate();
         }
     }
-    
+
     private boolean tryHydrotreat(String inputFluidPathContains, Fluid outputFluid, int batchAmount, int h2Required) {
         IFluidHandler inputHandler = inputTank.getPrimaryHandler();
         IFluidHandler outputHandler = outputTank.getPrimaryHandler();
@@ -170,6 +220,29 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
             outputHandler.fill(outputStack, IFluidHandler.FluidAction.EXECUTE);
         }
         return true;
+    }
+
+    private void siphonOverheadGasBlock() {
+        if (level == null || storedGasAmount >= MAX_GAS_CAPACITY) return;
+
+        BlockPos abovePos = worldPosition.above();
+        BlockState aboveState = level.getBlockState(abovePos);
+
+        if (aboveState.getBlock() instanceof GasBlock) {
+            ResourceLocation gasId = BuiltInRegistries.BLOCK.getKey(aboveState.getBlock());
+
+            int intakeAmount = 250; 
+            if (canAcceptGas(gasId, intakeAmount)) {
+                fillGas(gasId, intakeAmount);
+
+                if (aboveState.hasProperty(GasBlock.PRESSURE) && aboveState.getValue(GasBlock.PRESSURE) > 0) {
+                    int currentPressure = aboveState.getValue(GasBlock.PRESSURE);
+                    level.setBlock(abovePos, aboveState.setValue(GasBlock.PRESSURE, currentPressure - 1), 3);
+                } else {
+                    level.removeBlock(abovePos, false);
+                }
+            }
+        }
     }
 
     private void spawnGasParticles() {
@@ -247,11 +320,11 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
     }
 
     public boolean isProcessing() {
-        return isProcessing;
+        return isProcessing || isSplittingNaphtha;
     }
 
     public int getProcessingTicks() {
-        return processingTicks;
+        return isSplittingNaphtha ? naphthaSplitTicks : processingTicks;
     }
 
     public FluidStack getPrimaryFluidStack() {
@@ -334,6 +407,8 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         this.storedGasAmount = compound.getInt("GasAmount");
         this.isProcessing = compound.getBoolean("IsProcessing");
         this.processingTicks = compound.getInt("ProcessingTicks");
+        this.isSplittingNaphtha = compound.getBoolean("IsSplittingNaphtha");
+        this.naphthaSplitTicks = compound.getInt("NaphthaSplitTicks");
     }
 
     @Override
@@ -345,6 +420,8 @@ public class SteelBasinBlockEntity extends BasinBlockEntity implements IHaveGogg
         compound.putInt("GasAmount", storedGasAmount);
         compound.putBoolean("IsProcessing", isProcessing);
         compound.putInt("ProcessingTicks", processingTicks);
+        compound.putBoolean("IsSplittingNaphtha", isSplittingNaphtha);
+        compound.putInt("NaphthaSplitTicks", naphthaSplitTicks);
     }
 
     @Override

@@ -3,7 +3,6 @@ package com.deepu.create_crude.client.particle;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.particle.*;
 import net.minecraft.core.particles.SimpleParticleType;
-import net.minecraft.util.RandomSource;
 
 public class SulfurSmokeParticle extends TextureSheetParticle {
 

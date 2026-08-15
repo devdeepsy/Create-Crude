@@ -24,7 +24,6 @@ import com.deepu.create_crude.block.entity.SeismicDetectorBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.network.chat.Component;
-import com.deepu.create_crude.client.gui.DetectorUIScreen;
 
 public class SeismicDetectorBlock extends BaseEntityBlock {
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;

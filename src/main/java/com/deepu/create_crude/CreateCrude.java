@@ -3,8 +3,6 @@ package com.deepu.create_crude;
 import org.slf4j.Logger;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.logging.LogUtils;
-import com.simibubi.create.content.fluids.FluidTransportBehaviour;
-import com.simibubi.create.content.fluids.PipeConnection;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -34,7 +32,6 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -248,6 +245,8 @@ public class CreateCrude {
                 output.accept(SulfurFluids.HYDROTREATED_DIESEL_BUCKET.get());
                 output.accept(SulfurFluids.HYDROTREATED_KEROSENE_BUCKET.get());
                 output.accept(SulfurFluids.HYDROTREATED_GASOLINE_BUCKET.get());
+                output.accept(SulfurFluids.HEAVY_NAPHTHA_BUCKET.get());
+                output.accept(SulfurFluids.LIGHT_NAPHTHA_BUCKET.get());
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
