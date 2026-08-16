@@ -1,0 +1,7 @@
+{
+    "variants": {
+        "": {
+            "model": "createcrude:block/distiller_block"
+        }
+    }
+}

@@ -60,6 +60,8 @@ import com.deepu.create_crude.client.gui.DistillationContainerMenu;
 import net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import com.deepu.create_crude.block.entity.BradesitePipeBlockEntity;
+import com.deepu.create_crude.block.entity.CrackerBlockEntity;
+import com.deepu.create_crude.block.entity.BoilerBlockEntity;
 
 @Mod(CreateCrude.MODID)
 public class CreateCrude {
@@ -136,6 +138,17 @@ public class CreateCrude {
         BLOCK_ENTITIES.register("steel_basin",
             () -> BlockEntityType.Builder.of((pos, state) -> new SteelBasinBlockEntity(CreateCrude.STEEL_BASIN_BE.get(), pos, state),
                 STEEL_BASIN.get()).build(null)); 
+    public static final DeferredBlock<BoilerBlock> BOILER_BLOCK = BLOCKS.register("boiler_block",
+        () -> new BoilerBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BoilerBlockEntity>> BOILER_BLOCK_BE =BLOCK_ENTITIES.register("boiler_block", () ->
+        BlockEntityType.Builder.of(BoilerBlockEntity::new, BOILER_BLOCK.get()).build(null));
+    public static final DeferredBlock<CrackerBlock> CRACKER_BLOCK = BLOCKS.register("cracker_block",
+        () -> new CrackerBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CrackerBlockEntity>> CRACKER_BE =
+        BLOCK_ENTITIES.register("cracker", () ->
+            BlockEntityType.Builder.of(CrackerBlockEntity::new, CRACKER_BLOCK.get()).build(null));
+    public static final DeferredItem<Item> CRACKER_BLOCK_ITEM = ITEMS.register("cracker", () -> new BlockItem(CRACKER_BLOCK.get(), new Item.Properties()));
+    public static final DeferredItem<Item> BOILER_BLOCK_ITEM = ITEMS.register("boiler_block", () -> new BlockItem(BOILER_BLOCK.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_PIPE_ITEM = ITEMS.register("steel_pipe", () -> new BlockItem(STEEL_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> BRADESITE_PIPE_ITEM = ITEMS.register("bradesite_pipe", () -> new BlockItem(BRADESITE_PIPE.get(), new Item.Properties()));
     public static final DeferredItem<Item> HIGH_TENSILE_PIPE_ITEM = ITEMS.register("high_tensile_pipe", () -> new BlockItem(HIGH_TENSILE_PIPE.get(), new Item.Properties()));
@@ -248,6 +261,9 @@ public class CreateCrude {
                 output.accept(SulfurFluids.HEAVY_NAPHTHA_BUCKET.get());
                 output.accept(SulfurFluids.LIGHT_NAPHTHA_BUCKET.get());
                 output.accept(SulfurFluids.HYDROTREATED_HEAVY_NAPHTHA_BUCKET.get());
+                output.accept(BOILER_BLOCK_ITEM.get());
+                output.accept(CRACKER_BLOCK_ITEM.get());
+
             }).build());
 
     public CreateCrude(IEventBus modEventBus, ModContainer modContainer) {
@@ -326,6 +342,16 @@ public class CreateCrude {
             Capabilities.FluidHandler.BLOCK,
             CreateCrude.STEEL_BASIN_BE.get(),
             (blockEntity, side) -> blockEntity.getFluidHandler(side)
+        );
+        event.registerBlockEntity(
+            Capabilities.FluidHandler.BLOCK,
+            CreateCrude.BOILER_BLOCK_BE.get(),
+            (blockEntity, side) -> blockEntity.getFluidHandler(side)
+        );
+        event.registerBlockEntity(
+            Capabilities.FluidHandler.BLOCK,
+            CreateCrude.CRACKER_BE.get(),
+            (be, side) -> be.getFluidHandler(side)
         );
     }
 

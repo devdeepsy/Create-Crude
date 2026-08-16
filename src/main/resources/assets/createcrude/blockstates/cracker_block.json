@@ -1,0 +1,7 @@
+{
+    "variants": {
+        "": {
+        "model": "createcrude:block/cracker_block"
+        }
+    }
+}
