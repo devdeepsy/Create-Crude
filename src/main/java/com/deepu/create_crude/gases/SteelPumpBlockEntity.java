@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import com.deepu.create_crude.block.entity.ReactorBlockEntity;
 
 public class SteelPumpBlockEntity extends PumpBlockEntity {
 
@@ -68,6 +69,15 @@ public class SteelPumpBlockEntity extends PumpBlockEntity {
             if (frontBasin.canAcceptGas(gasId, TRANSFER_RATE)) {
                 frontBasin.fillGas(gasId, TRANSFER_RATE);
                 drainSource(backBE, backPos, TRANSFER_RATE);
+            }
+            return;
+        }
+        if (frontBE instanceof ReactorBlockEntity frontReactor) {
+            if (frontReactor.canAcceptGas(gasId, TRANSFER_RATE)) {
+                int filled = frontReactor.fillGas(gasId, TRANSFER_RATE);
+                if (filled > 0) {
+                    drainSource(backBE, backPos, filled);
+                }
             }
             return;
         }

@@ -62,6 +62,9 @@ import net.neoforged.neoforge.common.NeoForge;
 import com.deepu.create_crude.block.entity.BradesitePipeBlockEntity;
 import com.deepu.create_crude.block.entity.CrackerBlockEntity;
 import com.deepu.create_crude.block.entity.BoilerBlockEntity;
+import com.deepu.create_crude.block.entity.DistillerBlockEntity;
+import com.deepu.create_crude.block.entity.ReactorBlockEntity;
+import com.deepu.create_crude.client.gui.ReactorMenu;
 
 @Mod(CreateCrude.MODID)
 public class CreateCrude {
@@ -147,6 +150,22 @@ public class CreateCrude {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CrackerBlockEntity>> CRACKER_BE =
         BLOCK_ENTITIES.register("cracker", () ->
             BlockEntityType.Builder.of(CrackerBlockEntity::new, CRACKER_BLOCK.get()).build(null));
+    public static final DeferredBlock<DistillerBlock> DISTILLER_BLOCK = BLOCKS.register("distiller_block",
+        () -> new DistillerBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<DistillerBlockEntity>> DISTILLER_BE =
+        BLOCK_ENTITIES.register("distiller", () ->
+            BlockEntityType.Builder.of(DistillerBlockEntity::new, DISTILLER_BLOCK.get()).build(null));
+    public static final DeferredBlock<ReactorBlock> REACTOR_BLOCK = BLOCKS.register("reactor_block",
+        () -> new ReactorBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(5.0f).sound(SoundType.METAL).noOcclusion()));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ReactorBlockEntity>> REACTOR_BE =
+        BLOCK_ENTITIES.register("reactor", () ->
+            BlockEntityType.Builder.of(ReactorBlockEntity::new, REACTOR_BLOCK.get()).build(null));
+    public static final DeferredHolder<MenuType<?>, MenuType<ReactorMenu>> REACTOR_MENU =
+        MENU_TYPES.register("reactor_block", () -> net.neoforged.neoforge.common.extensions.IMenuTypeExtension.create(ReactorMenu::new));
+
+    //Items
+    public static final DeferredItem<Item> DISTILLER_BLOCK_ITEM = ITEMS.register("distiller_block", () -> new BlockItem(DISTILLER_BLOCK.get(), new Item.Properties()));
+    public static final DeferredItem<Item> REACTOR_BLOCK_ITEM = ITEMS.register("reactor_block", () -> new BlockItem(REACTOR_BLOCK.get(), new Item.Properties()));
     public static final DeferredItem<Item> CRACKER_BLOCK_ITEM = ITEMS.register("cracker", () -> new BlockItem(CRACKER_BLOCK.get(), new Item.Properties()));
     public static final DeferredItem<Item> BOILER_BLOCK_ITEM = ITEMS.register("boiler_block", () -> new BlockItem(BOILER_BLOCK.get(), new Item.Properties()));
     public static final DeferredItem<Item> STEEL_PIPE_ITEM = ITEMS.register("steel_pipe", () -> new BlockItem(STEEL_PIPE.get(), new Item.Properties()));
@@ -190,6 +209,7 @@ public class CreateCrude {
         BLOCK_ENTITIES.register("gas_aware_pipe", () ->
             BlockEntityType.Builder.of(GasAwarePipeBlockEntity::new,
                 STEEL_PIPE.get(), HIGH_TENSILE_PIPE.get()).build(null));
+
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BradesitePipeBlockEntity>> BRADESITE_PIPE_BE =
         BLOCK_ENTITIES.register("bradesite_pipe", () ->
             BlockEntityType.Builder.of(
@@ -263,6 +283,8 @@ public class CreateCrude {
                 output.accept(SulfurFluids.HYDROTREATED_HEAVY_NAPHTHA_BUCKET.get());
                 output.accept(BOILER_BLOCK_ITEM.get());
                 output.accept(CRACKER_BLOCK_ITEM.get());
+                output.accept(DISTILLER_BLOCK_ITEM.get());
+                output.accept(REACTOR_BLOCK_ITEM.get());
 
             }).build());
 
@@ -311,6 +333,8 @@ public class CreateCrude {
         event.registerSpriteSet(ModParticles.PROPANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.53F, 0.8F, 1.0F));
         event.registerSpriteSet(ModParticles.BUTANE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 0.53F, 1.0F));
         event.registerSpriteSet(ModParticles.HYDROGEN_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 1.0F, 1.0F, 1.0F));
+        event.registerSpriteSet(ModParticles.PROPYLENE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.53F, 1.0F, 0.8F));
+        event.registerSpriteSet(ModParticles.ETHYLENE_CLOUDS.get(), spr -> new GasCloudParticle.Provider(spr, 0.8F, 0.53F, 1.0F));
     }
 
     @SubscribeEvent
@@ -352,6 +376,11 @@ public class CreateCrude {
             Capabilities.FluidHandler.BLOCK,
             CreateCrude.CRACKER_BE.get(),
             (be, side) -> be.getFluidHandler(side)
+        );
+        event.registerBlockEntity(
+            Capabilities.ItemHandler.BLOCK,
+            CreateCrude.REACTOR_BE.get(),
+            (blockEntity, side) -> blockEntity.getItemHandler(side)
         );
     }
 

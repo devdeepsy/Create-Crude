@@ -16,6 +16,7 @@ import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
+import com.deepu.create_crude.client.gui.ReactorScreen;
 
 @EventBusSubscriber(modid = CreateCrude.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 public class CreateCrudeClient {
@@ -43,5 +44,7 @@ public class CreateCrudeClient {
     @SubscribeEvent
     static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(CreateCrude.DISTILLATION_CONTAINER.get(), DistillationScreen::new);
+        event.register(CreateCrude.REACTOR_MENU.get(), ReactorScreen::new);
+       
     }
 }

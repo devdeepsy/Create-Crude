@@ -48,6 +48,12 @@ public class GasRegistry {
         registerGas("hydrogen_block",
                 new GasProperties(8, 150, 20, 5, 0, 0x55FFFFFF),
                 ModParticles.HYDROGEN_CLOUDS);
+        registerGas("propylene_block",
+                new GasProperties(5, 120, 20, 5, 0, 0xAAFF8800),
+                ModParticles.PROPYLENE_CLOUDS);
+        registerGas("ethylene_block",
+                new GasProperties(5, 120, 20, 5, 0, 0xAA00FF00),
+                ModParticles.ETHYLENE_CLOUDS);
 
         // Make sure to register the Gas local event buses here!
         BLOCKS.register(modEventBus);

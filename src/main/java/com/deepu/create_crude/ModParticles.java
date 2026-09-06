@@ -29,6 +29,10 @@ public class ModParticles {
         PARTICLE_TYPES.register("butane_clouds", () -> new SimpleParticleType(false));
     public static final DeferredHolder<ParticleType<?>, SimpleParticleType> HYDROGEN_CLOUDS =
         PARTICLE_TYPES.register("hydrogen_clouds", () -> new SimpleParticleType(false));
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> PROPYLENE_CLOUDS =
+        PARTICLE_TYPES.register("propylene_clouds", () -> new SimpleParticleType(false));
+    public static final DeferredHolder<ParticleType<?>, SimpleParticleType> ETHYLENE_CLOUDS =
+        PARTICLE_TYPES.register("ethylene_clouds", () -> new SimpleParticleType(false));
     
 
     public static void register(IEventBus modEventBus) {

@@ -15,8 +15,10 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
+import com.deepu.create_crude.block.entity.ReactorBlockEntity;
 
 import javax.annotation.Nullable;
 import java.util.HashSet;
@@ -29,8 +31,12 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
     @Nullable
     private Direction incomingDirection = null;
 
+    public GasAwarePipeBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+        super(type, pos, state);
+    }
+
     public GasAwarePipeBlockEntity(BlockPos pos, BlockState state) {
-        super(CreateCrude.GAS_AWARE_PIPE_BE.get(), pos, state);
+        this(CreateCrude.GAS_AWARE_PIPE_BE.get(), pos, state);
     }
 
     public boolean hasGas() {
@@ -87,6 +93,12 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
                     }
                 }
             } else if (be instanceof GasAwarePipeBlockEntity) {
+                BooleanProperty neighborProp = getPipeProperty(neighborState.getBlock(), dir.getOpposite());
+                if (neighborProp != null && neighborState.getValue(neighborProp)) {
+                    int speed = findDrivingPumpSpeed(level, neighborPos, visited, depth + 1);
+                    if (speed > 0) return speed;
+                }
+            }   else if (be instanceof GasAwarePipeBlockEntity) {
                 BooleanProperty neighborProp = getPipeProperty(neighborState.getBlock(), dir.getOpposite());
                 if (neighborProp != null && neighborState.getValue(neighborProp)) {
                     int speed = findDrivingPumpSpeed(level, neighborPos, visited, depth + 1);
@@ -165,7 +177,6 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         if (nextDir != null) {
             BlockPos nextPos = pos.relative(nextDir);
             if (level.getBlockEntity(nextPos) instanceof GasAwarePipeBlockEntity nextBe) {
-                if (nextBe.hasGas()) return;
                 Direction nextIncoming = nextDir.getOpposite();
                 nextBe.setGas(be.gasPayload, nextIncoming);
                 be.clearGas();
@@ -177,7 +188,6 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
                 return;
             }
         }
-
         be.ventGasToWorld(level, pos, state);
     }
 
@@ -226,22 +236,29 @@ public class GasAwarePipeBlockEntity extends FluidPipeBlockEntity {
         }
         return false;
     }
+    public boolean canAcceptGas(GasPayload payload) {
+        return !hasGas();
+    }
 
     @Nullable
     private Direction findNextDirection(Level level, BlockPos currentPos, BlockState currentState) {
-        Set<Direction> candidates = new HashSet<>();
+        if (this.gasPayload == null) return null;
+
         for (Direction dir : Direction.values()) {
             if (incomingDirection != null && dir == incomingDirection) continue;
 
             BlockPos neighbor = currentPos.relative(dir);
-            if (level.getBlockEntity(neighbor) instanceof GasAwarePipeBlockEntity) {
+            if (level.getBlockEntity(neighbor) instanceof GasAwarePipeBlockEntity nextBe) {
                 BlockState neighborState = level.getBlockState(neighbor);
                 if (isPipeConnected(currentState, neighborState, dir)) {
-                    candidates.add(dir);
+                    // Check if the target pipe accepts this specific gas payload
+                    if (nextBe.canAcceptGas(this.gasPayload)) {
+                        return dir;
+                    }
                 }
             }
         }
-        return candidates.isEmpty() ? null : candidates.iterator().next();
+        return null;
     }
 
     private boolean isPipeConnected(BlockState fromState, BlockState toState, Direction dir) {
